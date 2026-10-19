@@ -1,0 +1,363 @@
+@import 'tailwindcss';
+@import 'flyonui/variants.css';
+
+@plugin 'flyonui';
+@plugin '@iconify/tailwind4';
+/* =========================================
+   FLYONUI THEME (hanya success = emerald)
+========================================= */
+
+@plugin 'flyonui/theme' {
+    name: 'light';
+    default: true;
+    color-scheme: light;
+    --color-success: oklch(59.6% 0.145 163.2);
+    /* emerald-600 */
+    --color-success-content: #ffffff;
+}
+
+@plugin 'flyonui/theme' {
+    name: 'dark';
+    color-scheme: dark;
+    --color-success: oklch(69.6% 0.17 162.5);
+    /* emerald-500 */
+    --color-success-content: #ffffff;
+}
+
+/* =========================================
+   SOURCE FILES
+========================================= */
+
+/* Source Blade Laravel */
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+/* Source JavaScript FlyonUI */
+@source '../../node_modules/flyonui/flyonui.js';
+
+/* =========================================
+   DARK MODE
+========================================= */
+
+/* Dark mode manual menggunakan class .dark */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =========================================
+   THEME GENERAL LEDGER
+========================================= */
+
+@theme {
+    --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+
+    --color-gl-primary: #059669;
+    --color-gl-primary-hover: #047857;
+
+    --color-gl-background: #fafafd;
+    --color-gl-surface: #ffffff;
+
+    --color-gl-text: #1e293b;
+    --color-gl-muted: #64748b;
+}
+
+/* =========================================
+   CUSTOM SCROLLBAR
+========================================= */
+
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+}
+
+/* =========================================
+   GENERAL LEDGER - SIDEBAR
+========================================= */
+
+/* Link menu sidebar */
+@utility gl-sidebar-link {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2;
+    @apply text-sm font-medium;
+    @apply text-slate-600 dark:text-slate-300;
+    @apply transition-colors duration-200;
+    @apply hover:bg-slate-100 hover:text-slate-900;
+    @apply dark:hover:bg-slate-800 dark:hover:text-white;
+}
+
+/* Link menu sidebar aktif */
+@utility gl-sidebar-link-active {
+    @apply bg-emerald-100/70 text-emerald-700;
+    @apply font-semibold;
+    @apply dark:bg-emerald-900/40 dark:text-emerald-400;
+}
+
+/* Icon pada sidebar */
+@utility gl-sidebar-icon {
+    @apply size-5 shrink-0;
+}
+
+/* Label sidebar */
+@utility gl-sidebar-label {
+    @apply min-w-0 flex-1 truncate;
+}
+
+/* Tombol dropdown sidebar */
+@utility gl-sidebar-dropdown {
+    @apply flex w-full items-center gap-3;
+    @apply rounded-lg px-3 py-2 text-left;
+    @apply text-sm font-medium;
+    @apply text-slate-600 dark:text-slate-300;
+    @apply transition-colors duration-200;
+    @apply hover:bg-slate-100 hover:text-slate-900;
+    @apply dark:hover:bg-slate-800 dark:hover:text-white;
+}
+
+/* Icon panah dropdown */
+@utility gl-sidebar-chevron {
+    @apply size-4 shrink-0 transition-transform duration-200;
+}
+
+/* Container submenu */
+@utility gl-sidebar-submenu {
+    @apply ml-5 mt-1 space-y-1;
+    @apply border-l border-slate-200 pl-3;
+    @apply dark:border-slate-700;
+}
+
+/* Link submenu */
+@utility gl-sidebar-submenu-link {
+    @apply block rounded-lg px-3 py-1.5 whitespace-nowrap;
+    @apply text-xs transition-colors duration-200;
+    @apply text-slate-500 dark:text-slate-400;
+    @apply hover:bg-slate-50 hover:text-emerald-600;
+    @apply dark:hover:bg-slate-800/40 dark:hover:text-emerald-300;
+}
+
+/* Link submenu aktif */
+@utility gl-sidebar-submenu-link-active {
+    @apply bg-emerald-100/50 font-semibold text-emerald-700;
+    @apply dark:bg-emerald-900/40 dark:text-emerald-400;
+}
+
+/* Garis pemisah sidebar */
+@utility gl-sidebar-divider {
+    @apply my-3 border-t border-slate-200;
+    @apply dark:border-slate-700;
+}
+
+/* Judul grup sidebar */
+@utility gl-sidebar-heading {
+    @apply mb-2 px-3 text-xs font-semibold uppercase tracking-wider;
+    @apply text-slate-400 dark:text-slate-500;
+}
+
+
+/* =========================================
+   GENERAL LEDGER - BUTTON
+========================================= */
+
+/* Base button */
+@utility gl-btn {
+    @apply inline-flex items-center justify-center gap-2;
+    @apply rounded-lg px-4 py-2 text-sm font-medium;
+    @apply transition-colors duration-200;
+    @apply focus-visible:outline-none focus-visible:ring-2;
+    @apply focus-visible:ring-emerald-500 focus-visible:ring-offset-2;
+    @apply disabled:pointer-events-none disabled:opacity-50;
+}
+
+
+/* =========================================
+   GENERAL LEDGER - FORM
+========================================= */
+
+/* Input, select, textarea */
+@utility gl-input {
+    @apply w-full rounded-lg border border-slate-300;
+    @apply bg-white px-3 py-2 text-sm text-slate-800;
+    @apply placeholder:text-slate-400;
+    @apply transition-colors duration-200;
+    @apply focus:border-emerald-500 focus:outline-none;
+    @apply focus:ring-2 focus:ring-emerald-500/20;
+    @apply dark:border-slate-700 dark:bg-slate-900;
+    @apply dark:text-slate-100 dark:placeholder:text-slate-500;
+}
+
+/* Label form */
+@utility gl-label {
+    @apply mb-1.5 block text-sm font-medium;
+    @apply text-slate-700 dark:text-slate-300;
+}
+
+/* Bantuan input */
+@utility gl-help {
+    @apply mt-1 text-xs text-slate-500;
+    @apply dark:text-slate-400;
+}
+
+/* Error validasi */
+@utility gl-error {
+    @apply mt-1 text-xs font-medium text-red-600;
+    @apply dark:text-red-400;
+}
+
+
+/* =========================================
+   GENERAL LEDGER - CARD
+========================================= */
+
+/* Card utama */
+@utility gl-card {
+    @apply rounded-xl border border-slate-200;
+    @apply bg-white shadow-sm;
+    @apply dark:border-slate-800 dark:bg-slate-900;
+}
+
+/* Header card */
+@utility gl-card-header {
+    @apply flex items-center justify-between gap-3;
+    @apply border-b border-slate-200 px-5 py-4;
+    @apply dark:border-slate-800;
+}
+
+/* Body card */
+@utility gl-card-body {
+    @apply p-5;
+}
+
+/* Footer card */
+@utility gl-card-footer {
+    @apply flex items-center justify-between gap-3;
+    @apply border-t border-slate-200 px-5 py-4;
+    @apply dark:border-slate-800;
+}
+
+
+/* =========================================
+   GENERAL LEDGER - TABLE
+========================================= */
+
+/* Wrapper tabel responsif */
+@utility gl-table-wrapper {
+    @apply w-full overflow-x-auto;
+}
+
+/* Tabel */
+@utility gl-table {
+    @apply w-full text-left text-sm;
+}
+
+/* Header tabel */
+@utility gl-table-head {
+    @apply bg-slate-50 text-xs font-semibold uppercase;
+    @apply tracking-wider text-slate-500;
+    @apply dark:bg-slate-800/70 dark:text-slate-400;
+}
+
+/* Cell header */
+@utility gl-table-th {
+    @apply whitespace-nowrap px-4 py-3;
+}
+
+/* Cell data */
+@utility gl-table-td {
+    @apply px-4 py-3 text-slate-600;
+    @apply dark:text-slate-300;
+}
+
+/* Baris tabel */
+@utility gl-table-row {
+    @apply border-b border-slate-100;
+    @apply transition-colors hover:bg-slate-50;
+    @apply dark:border-slate-800 dark:hover:bg-slate-800/50;
+}
+
+
+/* =========================================
+   GENERAL LEDGER - BADGE
+========================================= */
+
+/* Base badge */
+@utility gl-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1;
+    @apply text-xs font-medium;
+}
+
+/* Badge sukses / aktif */
+@utility gl-badge-success {
+    @apply bg-emerald-100 text-emerald-700;
+    @apply dark:bg-emerald-900/40 dark:text-emerald-400;
+}
+
+/* Badge peringatan */
+@utility gl-badge-warning {
+    @apply bg-amber-100 text-amber-700;
+    @apply dark:bg-amber-900/40 dark:text-amber-400;
+}
+
+/* Badge bahaya / nonaktif */
+@utility gl-badge-danger {
+    @apply bg-red-100 text-red-700;
+    @apply dark:bg-red-900/40 dark:text-red-400;
+}
+
+/* Badge netral */
+@utility gl-badge-neutral {
+    @apply bg-slate-100 text-slate-600;
+    @apply dark:bg-slate-800 dark:text-slate-300;
+}
+
+/* Overlay gelap ringan di belakang sidebar mobile */
+@utility gl-sidebar-overlay {
+    @apply fixed inset-0 z-50 lg:hidden;
+    @apply bg-slate-900/20 backdrop-blur-sm;
+    @apply dark:bg-black/40;
+}
+
+/* Panel sidebar: kaca di mobile, solid di desktop */
+@utility gl-sidebar-panel {
+    @apply fixed top-0 bottom-0 left-0 z-50 flex flex-col;
+    @apply text-slate-600 dark:text-slate-300;
+    @apply transition-all duration-300 ease-in-out;
+
+    /* Mobile: glass */
+    @apply bg-white/60 dark:bg-slate-900/60;
+    @apply backdrop-blur-xl backdrop-saturate-150;
+    @apply border-r border-white/50 dark:border-white/10;
+    @apply shadow-2xl shadow-emerald-900/10;
+
+    /* Desktop: solid */
+    @apply lg:bg-white lg:dark:bg-slate-900;
+    @apply lg:backdrop-blur-none lg:backdrop-saturate-100;
+    @apply lg:border-emerald-100/80 lg:dark:border-slate-800;
+    @apply lg:shadow-xs;
+}
+
+/* Header logo di dalam sidebar */
+@utility gl-sidebar-header {
+    @apply flex h-16 items-center justify-between px-4;
+    @apply border-b border-white/40 dark:border-white/10;
+    @apply lg:bg-white lg:dark:bg-slate-900;
+    @apply lg:border-emerald-100/60 lg:dark:border-slate-800;
+}
+
+/* Kartu "Periode Aktif" */
+@utility gl-sidebar-card {
+    @apply m-3 rounded-2xl p-3 text-xs;
+    @apply bg-emerald-50/50 dark:bg-emerald-950/30;
+    @apply border border-emerald-100/70 dark:border-emerald-900/40;
+    @apply lg:bg-emerald-50/80 lg:dark:bg-emerald-950/40;
+}
