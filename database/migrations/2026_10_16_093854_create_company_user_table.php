@@ -13,12 +13,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('company_user', function (Blueprint $table) {
-            $table->unsignedInteger('company_id')->nullable();
+            $table->unsignedInteger('company_code')->nullable();
             $table->unsignedInteger('user_id')->nullable();
             $table->timestampTz('created_at')->default(DB::raw("now()"));
             $table->timestampTz('updated_at')->default(DB::raw("now()"));
 
-            $table->unique(['company_id', 'user_id'], 'company_user_company_id_user_id_key');
+            $table->unique(['company_code', 'user_id'], 'company_user_company_code_user_id_key');
         });
     }
 

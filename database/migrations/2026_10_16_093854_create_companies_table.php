@@ -11,8 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+
         Schema::create('companies', function (Blueprint $table) {
             $table->increments('id');
+            $table->string('code', 20)->unique('companies_code_key');
             $table->string('name')->unique('companies_name_key');
         });
     }
