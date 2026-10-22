@@ -29,7 +29,8 @@
             <x-layout.footer />
         </div>
     </div>
-
+    {{-- Toast global: satu kali di layout, dipakai semua halaman --}}
+    <x-toast />
     @livewireScripts
 </body>
 

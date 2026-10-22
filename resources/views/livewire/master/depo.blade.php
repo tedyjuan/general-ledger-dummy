@@ -24,33 +24,8 @@
         </div>
     </div>
 
-    {{-- FLASH NOTIFIKASI SUKSES / ERROR --}}
-    @if (session()->has('success'))
-        <div
-            class="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 shadow-xs dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-300">
-            <div class="flex items-center gap-2.5">
-                <span class="icon-[tabler--circle-check] size-5 text-emerald-600 dark:text-emerald-400"></span>
-                <span class="text-sm font-medium">{{ session('success') }}</span>
-            </div>
-            <button type="button" onclick="this.parentElement.remove()"
-                class="text-emerald-600 hover:text-emerald-800 dark:text-emerald-400">
-                <span class="icon-[tabler--x] size-4"></span>
-            </button>
-        </div>
-    @endif
-
-    @if (session()->has('error'))
-        <div
-            class="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 shadow-xs dark:border-red-800/40 dark:bg-red-950/40 dark:text-red-300">
-            <div class="flex items-center gap-2.5">
-                <span class="icon-[tabler--alert-circle] size-5 text-red-600 dark:text-red-400"></span>
-                <span class="text-sm font-medium">{{ session('error') }}</span>
-            </div>
-            <button type="button" onclick="this.parentElement.remove()"
-                class="text-red-600 hover:text-red-800 dark:text-red-400">
-                <span class="icon-[tabler--x] size-4"></span>
-            </button>
-        </div>
+    @if (session('toast'))
+        <div x-data x-init="$dispatch('toast', { type: '{{ session('toast.type') }}', message: @js(session('toast.message')) })"></div>
     @endif
 
     {{-- KARTU TABEL DATA DEPO --}}
@@ -72,12 +47,9 @@
 
                 {{-- Kotak Pencarian --}}
                 <div class="relative w-full lg:max-w-xs lg:flex-1">
-                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
-                        <span class="icon-[tabler--search] size-4"></span>
-                    </span>
                     <input type="search" wire:model.live.debounce.300ms="search"
                         placeholder="Cari kode, nama, kota, npwp..."
-                        class="input input-sm w-full bg-white pl-9 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
+                        class="input input-sm w-full bg-white pl-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                 </div>
 
                 {{-- Kelompok Filter --}}
@@ -86,7 +58,7 @@
                     {{-- Filter Status --}}
                     <select wire:model.live="filterStatus"
                         class="select select-sm w-full bg-white sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-white">
-                        <option value="">Semua Status</option>
+                        <option value="">ALL</option>
                         <option value="pusat">Pusat</option>
                         <option value="depo">Depo</option>
                     </select>
@@ -97,7 +69,7 @@
                             class="select select-sm w-full bg-white sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                             <option value="">Semua Perusahaan</option>
                             @foreach ($companies as $comp)
-                                <option value="{{ $comp->id }}">{{ $comp->name }}</option>
+                                <option value="{{ $comp->code }}">{{ $comp->code }} - {{ $comp->name }}</option>
                             @endforeach
                         </select>
                     @endif
@@ -121,10 +93,10 @@
                 <thead class="bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                     <tr>
                         <th class="w-12 text-center">No.</th>
-                        <th class="cursor-pointer hover:text-emerald-700 select-none" wire:click="sortBy('depo_code')">
+                        <th class="cursor-pointer hover:text-emerald-700 select-none" wire:click="sortBy('code')">
                             <div class="flex items-center gap-1">
                                 Kode Depo
-                                @if ($sortField === 'depo_code')
+                                @if ($sortField === 'code')
                                     <span
                                         class="icon-[tabler--chevron-{{ $sortDirection === 'asc' ? 'up' : 'down' }}] size-3.5"></span>
                                 @endif
@@ -157,7 +129,7 @@
                             </td>
 
                             <td class="font-semibold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                                {{ $depo->depo_code }}
+                                {{ $depo->code }}
                             </td>
 
                             <td>
@@ -304,14 +276,14 @@
                             <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                                 Perusahaan <span class="text-red-500">*</span>
                             </label>
-                            <select wire:model="company_id"
-                                class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('company_id') border-red-500 @enderror">
+                            <select wire:model="company_code"
+                                class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('company_code') border-red-500 @enderror">
                                 <option value="">-- Pilih Perusahaan --</option>
                                 @foreach ($companies as $comp)
-                                    <option value="{{ $comp->id }}">{{ $comp->name }}</option>
+                                    <option value="{{ $comp->code }}">{{ $comp->name }}</option>
                                 @endforeach
                             </select>
-                            @error('company_id')
+                            @error('company_code')
                                 <span class="text-xs text-red-500">{{ $message }}</span>
                             @enderror
                         </div>
@@ -336,9 +308,9 @@
                             <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                                 Kode Depo <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" wire:model="depo_code" placeholder="Contoh: 336"
-                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('depo_code') border-red-500 @enderror">
-                            @error('depo_code')
+                            <input type="text" wire:model="code" placeholder="Contoh: 336" maxlength="3"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('code') border-red-500 @enderror">
+                            @error('code')
                                 <span class="text-xs text-red-500">{{ $message }}</span>
                             @enderror
                         </div>
@@ -372,7 +344,7 @@
                             <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                                 Kode Area <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" wire:model="area_code" placeholder="Contoh: 01"
+                            <input type="text" wire:model="area_code" placeholder="Contoh: 01" maxlength="2"
                                 class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('area_code') border-red-500 @enderror">
                             @error('area_code')
                                 <span class="text-xs text-red-500">{{ $message }}</span>

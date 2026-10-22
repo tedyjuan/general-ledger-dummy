@@ -14,8 +14,8 @@ class Depo extends Model
     protected $table = 'depos';
 
     protected $fillable = [
-        'company_id',
-        'depo_code',
+        'company_code',
+        'code',
         'npwp',
         'name',
         'address',
@@ -31,7 +31,7 @@ class Depo extends Model
     protected function casts(): array
     {
         return [
-            'company_id' => 'integer',
+            'company_code' => 'string',
             'fiscal_year' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -40,7 +40,7 @@ class Depo extends Model
 
     public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class, 'company_id', 'id');
+        return $this->belongsTo(Company::class, 'company_code', 'code');
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder
@@ -51,12 +51,12 @@ class Depo extends Model
 
         return $query->where(function (Builder $q) use ($term) {
             $q->where('name', 'like', "%{$term}%")
-              ->orWhere('depo_code', 'like', "%{$term}%")
-              ->orWhere('alias', 'like', "%{$term}%")
-              ->orWhere('area_code', 'like', "%{$term}%")
-              ->orWhere('city', 'like', "%{$term}%")
-              ->orWhere('npwp', 'like', "%{$term}%")
-              ->orWhere('phone_no', 'like', "%{$term}%");
+                ->orWhere('code', 'like', "%{$term}%")
+                ->orWhere('alias', 'like', "%{$term}%")
+                ->orWhere('area_code', 'like', "%{$term}%")
+                ->orWhere('city', 'like', "%{$term}%")
+                ->orWhere('npwp', 'like', "%{$term}%")
+                ->orWhere('phone_no', 'like', "%{$term}%");
         });
     }
 
@@ -69,12 +69,12 @@ class Depo extends Model
         return $query->where('status_depo', $status);
     }
 
-    public function scopeForCompany(Builder $query, ?int $companyId): Builder
+    public function scopeForCompany(Builder $query, ?string $companyCode): Builder
     {
-        if (empty($companyId)) {
+        if (empty($companyCode)) {
             return $query;
         }
 
-        return $query->where('company_id', $companyId);
+        return $query->where('company_code', $companyCode);
     }
 }

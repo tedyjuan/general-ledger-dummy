@@ -15,16 +15,12 @@ class Company extends Model
     protected $table = 'companies';
 
     protected $fillable = [
+        'code',
         'name',
     ];
 
     public function depos(): HasMany
     {
-        return $this->hasMany(Depo::class);
-    }
-
-    public function chartOfAccounts(): HasMany
-    {
-        return $this->hasMany(ChartOfAccount::class, 'company_id');
+        return $this->hasMany(Depo::class, 'company_code', 'code');
     }
 }
