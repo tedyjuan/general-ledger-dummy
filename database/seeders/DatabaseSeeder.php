@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
             CompanySeeder::class,
             DepoSeeder::class,
             DivisiSeeder::class,
+            DepartementSeeder::class,
         ]);
     }
 }

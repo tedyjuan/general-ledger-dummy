@@ -32,7 +32,7 @@ class DivisiImport implements
     {
         return new Divisi([
             'company_code' => trim((string) $row['company_code']),
-            'code'         => str_pad(trim((string) $row['code']), 3, '0', STR_PAD_LEFT),
+            'code'         => str_pad(trim((string) $row['code']), 2, '0', STR_PAD_LEFT),
             'name'         => $row['name'],
             'alias'        => $row['alias'],
         ]);

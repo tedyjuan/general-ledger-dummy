@@ -17,6 +17,7 @@ return [
             'children' => [
                 ['label' => 'Depo',                  'href' => '/depo',      'match' => ['depo*']],
                 ['label' => 'Divisi',                'href' => '/divisi',    'match' => ['divisi*']],
+                ['label' => 'Departement',                'href' => '/departement',    'match' => ['departement*']],
                 ['label' => 'Tes',                   'href' => '/tes',       'match' => ['tes*']],
                 ['label' => 'Chart of Accounts (COA)', 'href' => '/coa',     'match' => ['coa*']],
                 ['label' => 'Pelanggan & Vendor',    'href' => '/kontak',    'match' => ['kontak*']],

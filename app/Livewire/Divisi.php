@@ -32,12 +32,9 @@ class Divisi extends Component
         'company_code',
     ];
 
+
     /* [C] STATE MODAL */
-    public bool   $isModalOpen       = false;
-    public bool   $isDeleteModalOpen = false;
-    public ?int   $selectedId        = null;
-    public ?int   $deleteId          = null;
-    public string $deleteName        = '';
+    public ?int $selectedId = null;
 
     /* [D] STATE FORM */
     public string $company_code = '';
@@ -100,7 +97,6 @@ class Divisi extends Component
     {
         $this->resetForm();
         $this->resetErrorBag();
-        $this->isModalOpen = true;
     }
 
     public function edit(int $id): void
@@ -113,8 +109,6 @@ class Divisi extends Component
         $this->code         = $divisi->code ?? '';
         $this->name         = $divisi->name ?? '';
         $this->alias        = $divisi->alias ?? '';
-
-        $this->isModalOpen = true;
     }
 
     public function save(): void
@@ -152,49 +146,32 @@ class Divisi extends Component
         }
 
         $this->closeModal();
+        $this->dispatch('modal-close');
     }
 
     public function closeModal(): void
     {
-        $this->isModalOpen = false;
         $this->resetErrorBag();
         $this->resetForm();
     }
 
-    /* [G] MODAL HAPUS */
-    public function confirmDelete(int $id): void
-    {
-        $divisi = DivisiModel::findOrFail($id);
 
-        $this->deleteId          = $id;
-        $this->deleteName        = $divisi->name;
-        $this->isDeleteModalOpen = true;
-    }
 
     public function delete(): void
     {
-        if ($this->deleteId) {
-            try {
-                $divisi = DivisiModel::findOrFail($this->deleteId);
-                $name = $divisi->name;
-                $divisi->delete();
+        try {
+            $divisi = DivisiModel::findOrFail($this->deleteId);
+            $name = $divisi->name;
+            $divisi->delete();
 
-                $this->toast("Divisi '{$name}' berhasil dihapus.");
-            } catch (QueryException $e) {
-                report($e);
-                $this->toast('Divisi tidak bisa dihapus karena masih dipakai data lain.', 'error');
-            }
+            $this->toast("Divisi '{$name}' berhasil dihapus.");
+        } catch (QueryException $e) {
+            report($e);
+            $this->toast('Divisi tidak bisa dihapus karena masih dipakai data lain.', 'error');
         }
-
-        $this->closeDeleteModal();
+        $this->dispatch('delete-close');
     }
 
-    public function closeDeleteModal(): void
-    {
-        $this->isDeleteModalOpen = false;
-        $this->deleteId          = null;
-        $this->deleteName        = '';
-    }
 
     private function resetForm(): void
     {

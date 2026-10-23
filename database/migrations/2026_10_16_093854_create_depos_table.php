@@ -27,13 +27,12 @@ return new class extends Migration
             $table->string('area_code');
             $table->integer('fiscal_year')->nullable();
             $table->enum('status_depo', ['pusat', 'depo'])->nullable();
-            $table->timestampTz('created_at')->default(DB::raw('now()'));
-            $table->timestampTz('updated_at')->default(DB::raw('now()'));
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
 
             $table->foreign('company_code', 'depos_company_code_fkey')
                 ->references('code')
                 ->on('companies')
-                ->cascadeOnUpdate()
                 ->restrictOnDelete();
 
             $table->unique(['alias', 'company_code'], 'depos_alias_company_code_key');
