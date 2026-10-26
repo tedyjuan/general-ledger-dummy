@@ -1,34 +1,32 @@
 {{-- resources/views/components/layouts/app.blade.php --}}
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" x-data="theme" :class="{ 'dark': darkMode }"
-    :data-theme="darkMode ? 'dark' : 'light'" class="h-full">
+    :data-theme="darkMode ? 'dark' : 'light'" class="min-h-screen">
 
 @include('partials.head')
 
 <body
-    class="h-full antialiased text-slate-700 dark:text-slate-200 bg-[#F8FAF8] dark:bg-slate-950 transition-colors duration-200"
+    class="min-h-screen antialiased text-slate-700 dark:text-slate-200 bg-[#F8FAF8] dark:bg-slate-950 transition-colors duration-200"
     x-data="{ sidebarOpen: true, mobileSidebarOpen: false }">
 
-    <div class="min-h-screen flex flex-col">
+    <x-layout.sidebar />
 
-        <x-layout.sidebar />
+    <div class="flex min-h-screen min-w-0 flex-col transition-all duration-300"
+        :class="{ 'lg:pl-64': sidebarOpen, 'lg:pl-20': !sidebarOpen }">
 
-        <div class="flex-1 flex flex-col transition-all duration-300"
-            :class="{ 'lg:pl-64': sidebarOpen, 'lg:pl-20': !sidebarOpen }">
+        <x-layout.navbar />
 
-            <x-layout.navbar />
+        <main class="mx-auto w-full max-w-7xl flex-1 p-4 pb-12 lg:p-8 lg:pb-16">
+            @isset($header)
+                <div class="mb-6">{{ $header }}</div>
+            @endisset
 
-            <main class="flex-1 p-4 lg:p-8 max-w-7xl w-full mx-auto">
-                @isset($header)
-                    <div class="mb-6">{{ $header }}</div>
-                @endisset
+            {{ $slot }}
+        </main>
 
-                {{ $slot }}
-            </main>
-
-            <x-layout.footer />
-        </div>
+        <x-layout.footer />
     </div>
+
     {{-- Toast global: satu kali di layout, dipakai semua halaman --}}
     <x-toast />
     @livewireScripts

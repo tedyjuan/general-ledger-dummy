@@ -10,6 +10,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Illuminate\Support\Str;
 
 class Departement extends Component
 {
@@ -107,11 +108,13 @@ class Departement extends Component
         $this->company_code = $departement->company_code;
         $this->code         = $departement->code ?? '';
         $this->name         = $departement->name ?? '';
-        $this->alias        = $departement->alias ?? '';
+        $this->alias        = Str::upper($departement->alias ?? '');
     }
 
     public function save(): void
     {
+        $this->alias = Str::upper(trim($this->alias));
+
         $uniquePerCompany = fn(string $column) => Rule::unique('departments', $column)
             ->where(fn($q) => $q->where('company_code', $this->company_code))
             ->ignore($this->selectedId);
@@ -154,22 +157,29 @@ class Departement extends Component
         $this->resetForm();
     }
 
+
+
     public function delete(int $id): void
     {
         try {
             $departement = DepartementModel::findOrFail($id);
+
             $name = $departement->name;
+
             $departement->delete();
 
             $this->toast("Departement '{$name}' berhasil dihapus.");
         } catch (QueryException $e) {
             report($e);
-            $this->toast('Departement tidak bisa dihapus karena masih dipakai data lain.', 'error');
+
+            $this->toast(
+                'Departement tidak bisa dihapus karena masih dipakai data lain.',
+                'error'
+            );
         }
 
         $this->dispatch('delete-close');
     }
-
 
 
     private function resetForm(): void

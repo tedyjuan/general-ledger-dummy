@@ -1,4 +1,3 @@
-{{-- resources/views/components/layout/footer.blade.php --}}
 <footer
     class="bg-white/60 dark:bg-slate-900/60 border-t border-emerald-100/60 dark:border-slate-800 py-4 px-6 text-xs text-slate-500 dark:text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 mt-auto">
     <div>

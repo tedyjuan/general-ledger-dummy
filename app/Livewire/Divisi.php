@@ -10,6 +10,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 use Livewire\WithPagination;
+use Illuminate\Support\Str;
 
 class Divisi extends Component
 {
@@ -35,6 +36,7 @@ class Divisi extends Component
 
     /* [C] STATE MODAL */
     public ?int $selectedId = null;
+
 
     /* [D] STATE FORM */
     public string $company_code = '';
@@ -108,11 +110,12 @@ class Divisi extends Component
         $this->company_code = $divisi->company_code;
         $this->code         = $divisi->code ?? '';
         $this->name         = $divisi->name ?? '';
-        $this->alias        = $divisi->alias ?? '';
+        $this->alias        = Str::upper($divisi->alias ?? '');
     }
 
     public function save(): void
     {
+        $this->alias = Str::upper(trim($this->alias));
         $uniquePerCompany = fn(string $column) => Rule::unique('divisions', $column)
             ->where(fn($q) => $q->where('company_code', $this->company_code))
             ->ignore($this->selectedId);
@@ -157,22 +160,29 @@ class Divisi extends Component
 
 
 
-    public function delete(): void
+
+
+    public function delete(int $id): void
     {
         try {
-            $divisi = DivisiModel::findOrFail($this->deleteId);
+            $divisi = DivisiModel::findOrFail($id);
+
             $name = $divisi->name;
+
             $divisi->delete();
 
             $this->toast("Divisi '{$name}' berhasil dihapus.");
         } catch (QueryException $e) {
             report($e);
-            $this->toast('Divisi tidak bisa dihapus karena masih dipakai data lain.', 'error');
+
+            $this->toast(
+                'Divisi tidak bisa dihapus karena masih dipakai data lain.',
+                'error'
+            );
         }
+
         $this->dispatch('delete-close');
     }
-
-
     private function resetForm(): void
     {
         $this->selectedId   = null;

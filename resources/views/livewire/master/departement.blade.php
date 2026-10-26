@@ -275,7 +275,9 @@
                         <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                             Kode Departement <span class="text-red-500">*</span>
                         </label>
-                        <input type="text" wire:model="code" placeholder="Contoh: 336" maxlength="3"
+                        <input type="text" wire:model="code" placeholder="Contoh: 02" maxlength="2"
+                            inputmode="numeric" pattern="[0-9]*" autocomplete="off" x-data
+                            x-on:beforeinput="if ($event.data && /\D/.test($event.data)) $event.preventDefault()"
                             class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('code') border-red-500 @enderror">
                         @error('code')
                             <span class="text-xs text-red-500">{{ $message }}</span>
@@ -300,7 +302,7 @@
                             Alias / Singkatan <span class="text-red-500">*</span>
                         </label>
                         <input type="text" wire:model="alias" placeholder="Contoh: SRG"
-                            class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('alias') border-red-500 @enderror">
+                            class="input input-sm w-full bg-white dark:border-slate-700 uppercase dark:bg-slate-900 dark:text-white @error('alias') border-red-500 @enderror">
                         @error('alias')
                             <span class="text-xs text-red-500">{{ $message }}</span>
                         @enderror
