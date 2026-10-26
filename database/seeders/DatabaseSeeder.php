@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             DepoSeeder::class,
             DivisiSeeder::class,
             DepartementSeeder::class,
+            SegmentSeeder::class,
         ]);
     }
 }
