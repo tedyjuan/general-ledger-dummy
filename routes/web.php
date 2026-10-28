@@ -8,8 +8,12 @@ use App\Livewire\Divisi;
 use App\Livewire\Segment;
 use App\Livewire\Departement;
 use App\Livewire\TrialBalance;
+use App\Livewire\Login;
+use App\Livewire\Dashboard;
 
+Route::livewire('/', Login::class);
 Route::livewire('/tes', Tes::class);
+Route::livewire('/dashboard', Dashboard::class);
 Route::livewire('/depo', Depo::class);
 Route::livewire('/divisi', Divisi::class);
 Route::livewire('/segment', Segment::class);
