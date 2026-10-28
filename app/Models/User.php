@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Lauthz\Facades\Enforcer;
 
 #[Fillable(['role_code', 'name', 'username', 'password_hash', 'is_password_default'])]
 #[Hidden(['password_hash'])]
@@ -40,6 +41,12 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class, 'role_code', 'code');
+    }
+
+    public function izin(string $key, string $aksi): bool
+    {
+        return filled($this->role_code)
+            && Enforcer::enforce($this->role_code, $key, $aksi);
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

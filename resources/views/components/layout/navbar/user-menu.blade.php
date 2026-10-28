@@ -1,14 +1,16 @@
 {{-- resources/views/components/layout/navbar/user-menu.blade.php --}}
-@props(['name' => 'Akuntan Utama', 'role' => 'Chief Accountant'])
-
+@props([
+    'name' => auth()->user()?->name ?? 'Guest',
+    'role' => auth()->user()?->role?->name ?? 'User',
+])
 <div class="relative" x-data="{ userMenuOpen: false }">
     <button @click="userMenuOpen = !userMenuOpen"
         class="flex items-center gap-2 p-1 rounded-xl hover:bg-emerald-50 dark:hover:bg-slate-800 transition-colors">
         <img class="w-8 h-8 rounded-xl object-cover ring-2 ring-emerald-500/20"
-            src="https://ui-avatars.com/api/?name={{ urlencode($name) }}&background=059669&color=fff"
-            alt="User Avatar">
+            src="https://ui-avatars.com/api/?name={{ urlencode($name) }}&background=059669&color=fff" alt="User Avatar">
         <div class="hidden sm:flex flex-col text-left">
-            <span class="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight">{{ $name }}</span>
+            <span
+                class="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight">{{ $name }}</span>
             <span class="text-[10px] text-slate-400">{{ $role }}</span>
         </div>
         <svg class="w-4 h-4 text-slate-400 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
