@@ -9,6 +9,13 @@
     }
 }" @modal-close.window="modalOpen = false" @delete-close.window="deleteOpen = false"
     @keydown.escape.window="modalOpen && closeForm(); deleteOpen = false">
+    @php
+        $user = auth()->user();
+        $bisaTambah = (bool) $user?->izin('segment', 'create');
+        $bisaEdit = (bool) $user?->izin('segment', 'update');
+        $bisaHapus = (bool) $user?->izin('segment', 'delete');
+        $adaAksi = $bisaEdit || $bisaHapus;
+    @endphp
     {{-- HEADER HALAMAN (Langsung di dalam Livewire root agar tombol wire:click berfungsi) --}}
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -27,11 +34,13 @@
                 <span wire:loading wire:target="refreshData" class="icon-[tabler--loader-2] size-4 animate-spin"></span>
                 Refresh
             </button>
-
-            <button type="button" @click="modalOpen=true" class="btn btn-success flex items-center gap-1.5 shadow-xs">
-                <span class="icon-[tabler--plus] size-4"></span>
-                Tambah Segment
-            </button>
+            @if ($bisaTambah)
+                <button type="button" @click="modalOpen=true"
+                    class="btn btn-success flex items-center gap-1.5 shadow-xs">
+                    <span class="icon-[tabler--plus] size-4"></span>
+                    Tambah Segment
+                </button>
+            @endif
         </div>
     </div>
 
@@ -118,7 +127,9 @@
                         </th>
                         <th>Alias</th>
                         <th>Perusahaan</th>
-                        <th class="text-center">Aksi</th>
+                        @if ($adaAksi)
+                            <th class="text-center">Aksi</th>
+                        @endif
                     </tr>
                 </thead>
 
@@ -150,24 +161,26 @@
                             </td>
                             <td>
                                 <div class="flex items-center justify-center gap-1.5">
-
-                                    <button type="button"
-                                        @click="$wire.edit({{ $segment->id }}).then(() => modalOpen = true)"
-                                        wire:loading.attr="disabled" wire:target="edit({{ $segment->id }})"
-                                        class="btn btn-sm btn-outline btn-primary" title="Edit Segment"
-                                        aria-label="Edit Segment">
-                                        <span wire:loading.remove wire:target="edit({{ $segment->id }})"
-                                            class="icon-[tabler--pencil] size-4"></span>
-                                        <span wire:loading wire:target="edit({{ $segment->id }})"
-                                            class="icon-[tabler--loader-2] size-4 animate-spin"></span>
-                                    </button>
-
-                                    <button type="button"
-                                        @click="deleteId = {{ $segment->id }}; deleteName = @js($segment->name); deleteOpen = true"
-                                        class="btn btn-sm btn-outline btn-error" title="Hapus Segment"
-                                        aria-label="Hapus Segment">
-                                        <span class="icon-[tabler--trash] size-4"></span>
-                                    </button>
+                                    @if ($bisaEdit)
+                                        <button type="button"
+                                            @click="$wire.edit({{ $segment->id }}).then(() => modalOpen = true)"
+                                            wire:loading.attr="disabled" wire:target="edit({{ $segment->id }})"
+                                            class="btn btn-sm btn-outline btn-primary" title="Edit Segment"
+                                            aria-label="Edit Segment">
+                                            <span wire:loading.remove wire:target="edit({{ $segment->id }})"
+                                                class="icon-[tabler--pencil] size-4"></span>
+                                            <span wire:loading wire:target="edit({{ $segment->id }})"
+                                                class="icon-[tabler--loader-2] size-4 animate-spin"></span>
+                                        </button>
+                                    @endif
+                                    @if ($bisaHapus)
+                                        <button type="button"
+                                            @click="deleteId = {{ $segment->id }}; deleteName = @js($segment->name); deleteOpen = true"
+                                            class="btn btn-sm btn-outline btn-error" title="Hapus Segment"
+                                            aria-label="Hapus Segment">
+                                            <span class="icon-[tabler--trash] size-4"></span>
+                                        </button>
+                                    @endif
                                 </div>
                             </td>
 
@@ -334,48 +347,50 @@
     {{-- end modal tambah / edit --}}
 
     {{-- MODAL KONFIRMASI HAPUS --}}
-    <div x-show="deleteOpen" x-cloak x-transition.opacity.duration.150ms
-        class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all"
-        wire:click.self="closeDeleteModal">
-        <div
-            class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <div class="flex items-start gap-4">
-                <div
-                    class="flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400">
-                    <span class="icon-[tabler--alert-triangle] size-6"></span>
+    @if ($bisaHapus)
+        <div x-show="deleteOpen" x-cloak x-transition.opacity.duration.150ms
+            class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all"
+            wire:click.self="closeDeleteModal">
+            <div
+                class="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                <div class="flex items-start gap-4">
+                    <div
+                        class="flex size-12 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400">
+                        <span class="icon-[tabler--alert-triangle] size-6"></span>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">
+                            Hapus Data Segment
+                        </h3>
+                        <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                            Apakah Anda yakin ingin menghapus Segment
+                            <span class="font-semibold text-slate-800 dark:text-white"
+                                x-text="'&quot;' + deleteName + '&quot;'"></span>?
+                            Tindakan ini tidak dapat dibatalkan.
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-lg font-bold text-slate-800 dark:text-white">
-                        Hapus Data Segment
-                    </h3>
-                    <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                        Apakah Anda yakin ingin menghapus Segment
-                        <span class="font-semibold text-slate-800 dark:text-white"
-                            x-text="'&quot;' + deleteName + '&quot;'"></span>?
-                        Tindakan ini tidak dapat dibatalkan.
-                    </p>
-                </div>
-            </div>
 
-            <div class="mt-6 flex items-center justify-end gap-2">
-                <button type="button" @click="deleteOpen = false"
-                    class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">
-                    Batal
-                </button>
-                <button type="button" type="button" @click="$wire.delete(deleteId)"
-                    class="btn btn-sm bg-red-600 text-white hover:bg-red-700 flex items-center gap-1.5"
-                    wire:loading.attr="disabled">
-                    <span wire:loading.remove wire:target="delete" class="flex items-center gap-1.5">
-                        <span class="icon-[tabler--trash] size-4"></span>
-                        Ya, Hapus
-                    </span>
-                    <span wire:loading wire:target="delete" class="flex items-center gap-1.5">
-                        <span class="icon-[tabler--loader-2] size-4 animate-spin"></span>
-                        Menghapus...
-                    </span>
-                </button>
+                <div class="mt-6 flex items-center justify-end gap-2">
+                    <button type="button" @click="deleteOpen = false"
+                        class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">
+                        Batal
+                    </button>
+                    <button type="button" type="button" @click="$wire.delete(deleteId)"
+                        class="btn btn-sm bg-red-600 text-white hover:bg-red-700 flex items-center gap-1.5"
+                        wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="delete" class="flex items-center gap-1.5">
+                            <span class="icon-[tabler--trash] size-4"></span>
+                            Ya, Hapus
+                        </span>
+                        <span wire:loading wire:target="delete" class="flex items-center gap-1.5">
+                            <span class="icon-[tabler--loader-2] size-4 animate-spin"></span>
+                            Menghapus...
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
-    </div>
+    @endif
     {{-- end hapus  --}}
 </div>

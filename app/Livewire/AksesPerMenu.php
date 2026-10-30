@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Models\User;
 use App\Models\Role;
 use App\Livewire\Concerns\Otorisasi;
 use App\Support\Navigation;
@@ -62,9 +63,62 @@ class AksesPerMenu extends Component
         }
     }
 
+    // public function simpan(): void
+    // {
+    //     // Validasi hak akses user yang sedang login
+    //     $this->izinkan('permissions', 'manage');
+
+    //     $daftarMenu = Navigation::permissionables();
+
+    //     abort_unless(isset($daftarMenu[$this->menu]), 422);
+
+    //     $aksiMenu = $daftarMenu[$this->menu]['actions'];
+
+    //     // Ambil daftar role dari database
+    //     $perans = Role::query()
+    //         ->orderBy('name')
+    //         ->get(['code']);
+
+    //     foreach ($perans as $i => $role) {
+    //         $peran = $role->code;
+
+    //         $mau = [];
+
+    //         foreach ($aksiMenu as $aksi) {
+    //             $mau[$aksi] = (bool) ($this->matrix[$i][$aksi] ?? false);
+    //         }
+
+    //         // Jika aksi lain dicentang, read otomatis aktif
+    //         if (in_array('read', $aksiMenu, true) && in_array(true, $mau, true)) {
+    //             $mau['read'] = true;
+    //         }
+
+    //         // Pengaman: role ICTT tidak boleh kehilangan akses
+    //         // untuk mengelola hak akses
+    //         if ($peran === 'ICTT' && $this->menu === 'permissions') {
+    //             $mau = array_fill_keys($aksiMenu, true);
+    //         }
+
+    //         foreach ($aksiMenu as $aksi) {
+    //             $punya = Enforcer::hasPolicy($peran, $this->menu, $aksi);
+
+    //             if ($mau[$aksi] && ! $punya) {
+    //                 Enforcer::addPolicy($peran, $this->menu, $aksi);
+    //             } elseif (! $mau[$aksi] && $punya) {
+    //                 Enforcer::removePolicy($peran, $this->menu, $aksi);
+    //             }
+    //         }
+    //     }
+
+    //     // Muat ulang permission setelah disimpan
+    //     $this->muat();
+
+    //     $this->tersimpan = true;
+    // }
+
+
     public function simpan(): void
     {
-        // Validasi hak akses user yang sedang login
         $this->izinkan('permissions', 'manage');
 
         $daftarMenu = Navigation::permissionables();
@@ -73,7 +127,6 @@ class AksesPerMenu extends Component
 
         $aksiMenu = $daftarMenu[$this->menu]['actions'];
 
-        // Ambil daftar role dari database
         $perans = Role::query()
             ->orderBy('name')
             ->get(['code']);
@@ -87,13 +140,10 @@ class AksesPerMenu extends Component
                 $mau[$aksi] = (bool) ($this->matrix[$i][$aksi] ?? false);
             }
 
-            // Jika aksi lain dicentang, read otomatis aktif
             if (in_array('read', $aksiMenu, true) && in_array(true, $mau, true)) {
                 $mau['read'] = true;
             }
 
-            // Pengaman: role ICTT tidak boleh kehilangan akses
-            // untuk mengelola hak akses
             if ($peran === 'ICTT' && $this->menu === 'permissions') {
                 $mau = array_fill_keys($aksiMenu, true);
             }
@@ -109,12 +159,13 @@ class AksesPerMenu extends Component
             }
         }
 
-        // Muat ulang permission setelah disimpan
+        // Policy sudah tersimpan, buat cache izin semua role usang
+        User::resetCacheIzin();
+
         $this->muat();
 
         $this->tersimpan = true;
     }
-
     public function render()
     {
         $daftarMenu = Navigation::permissionables();

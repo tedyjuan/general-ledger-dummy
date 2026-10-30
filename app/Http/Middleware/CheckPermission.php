@@ -21,16 +21,6 @@ class CheckPermission
     {
         $user = $request->user();
         $diizinkan = $user?->izin($key, $action) ?? false;
-
-        // dd([
-        //     'user_id'   => $user?->id,
-        //     'user_name' => $user?->name,
-        //     'role_code' => $user?->role_code,
-        //     'key'       => $key,
-        //     'action'    => $action,
-        //     'allowed'   => $diizinkan,
-        // ]);
-
         abort_unless($diizinkan, 403, 'Anda tidak memiliki akses ke halaman ini. dd');
 
         return $next($request);

@@ -267,209 +267,208 @@
         </div>
     </div>
     {{-- MODAL FORM TAMBAH / EDIT DEPO --}}
-    @if ($adaAksi)
-        @if ($isModalOpen)
-            <div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm transition-all"
-                wire:click.self="closeModal">
+    @if ($isModalOpen)
+        <div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm transition-all"
+            wire:click.self="closeModal">
+            <div
+                class="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-8">
+                {{-- Modal Header --}}
                 <div
-                    class="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 my-8">
-                    {{-- Modal Header --}}
-                    <div
-                        class="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-                        <div class="flex items-center gap-2.5">
-                            <span
-                                class="icon-[tabler--building-warehouse] size-6 text-emerald-600 dark:text-emerald-400"></span>
-                            <h3 class="text-lg font-bold text-slate-800 dark:text-white">
-                                {{ $selectedId ? 'Edit Data Depo' : 'Tambah Depo Baru' }}
-                            </h3>
+                    class="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+                    <div class="flex items-center gap-2.5">
+                        <span
+                            class="icon-[tabler--building-warehouse] size-6 text-emerald-600 dark:text-emerald-400"></span>
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white">
+                            {{ $selectedId ? 'Edit Data Depo' : 'Tambah Depo Baru' }}
+                        </h3>
+                    </div>
+                    <button type="button" wire:click="closeModal"
+                        class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors">
+                        <span class="icon-[tabler--x] size-5"></span>
+                    </button>
+                </div>
+
+                {{-- Modal Body Form --}}
+                <form wire:submit.prevent="save">
+                    <div class="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 max-h-[70vh] overflow-y-auto">
+                        {{-- Perusahaan --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Perusahaan <span class="text-red-500">*</span>
+                            </label>
+                            <select wire:model="company_code"
+                                class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('company_code') border-red-500 @enderror">
+                                <option value="">-- Pilih Perusahaan --</option>
+                                @foreach ($companies as $comp)
+                                    <option value="{{ $comp->code }}">{{ $comp->name }}</option>
+                                @endforeach
+                            </select>
+                            @error('company_code')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
                         </div>
-                        <button type="button" wire:click="closeModal"
-                            class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors">
-                            <span class="icon-[tabler--x] size-5"></span>
-                        </button>
+
+                        {{-- Status Depo --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Status / Tipe Depo <span class="text-red-500">*</span>
+                            </label>
+                            <select wire:model="status_depo"
+                                class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('status_depo') border-red-500 @enderror">
+                                <option value="depo">Depo</option>
+                                <option value="pusat">Pusat</option>
+                            </select>
+                            @error('status_depo')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Kode Depo --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Kode Depo <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" wire:model="code" placeholder="Contoh: 336" maxlength="3"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('code') border-red-500 @enderror">
+                            @error('code')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Nama Depo --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Nama Depo <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" wire:model="name" placeholder="Contoh: Serang"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('name') border-red-500 @enderror">
+                            @error('name')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Alias --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Alias / Singkatan <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" wire:model="alias" placeholder="Contoh: SRG"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('alias') border-red-500 @enderror">
+                            @error('alias')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Kode Area --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Kode Area <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" wire:model="area_code" placeholder="Contoh: 01" maxlength="2"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('area_code') border-red-500 @enderror">
+                            @error('area_code')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- NPWP --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                NPWP
+                            </label>
+                            <input type="text" wire:model="npwp" placeholder="00.000.000.0-000.000"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('npwp') border-red-500 @enderror">
+                            @error('npwp')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Telepon --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                No. Telepon
+                            </label>
+                            <input type="text" wire:model="phone_no" placeholder="Contoh: 0254-123456"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('phone_no') border-red-500 @enderror">
+                            @error('phone_no')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Kota --}}
+                        <div class="col-span-1">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Kota
+                            </label>
+                            <input type="text" wire:model="city" placeholder="Contoh: Serang"
+                                class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('city') border-red-500 @enderror">
+                            @error('city')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
+
+                        {{-- Kode Pos & Tahun Fiskal --}}
+                        <div class="col-span-1 grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                    Kode Pos
+                                </label>
+                                <input type="text" wire:model="postal_code" placeholder="42111"
+                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('postal_code') border-red-500 @enderror">
+                                @error('postal_code')
+                                    <span class="text-xs text-red-500">{{ $message }}</span>
+                                @enderror
+                            </div>
+
+                            <div>
+                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                    Tahun Fiskal
+                                </label>
+                                <input type="number" wire:model="fiscal_year" placeholder="2026"
+                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('fiscal_year') border-red-500 @enderror">
+                                @error('fiscal_year')
+                                    <span class="text-xs text-red-500">{{ $message }}</span>
+                                @enderror
+                            </div>
+                        </div>
+
+                        {{-- Alamat --}}
+                        <div class="col-span-1 sm:col-span-2">
+                            <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                Alamat Lengkap
+                            </label>
+                            <textarea wire:model="address" rows="3" placeholder="Masukkan alamat lengkap depo..."
+                                class="textarea textarea-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('address') border-red-500 @enderror"></textarea>
+                            @error('address')
+                                <span class="text-xs text-red-500">{{ $message }}</span>
+                            @enderror
+                        </div>
                     </div>
 
-                    {{-- Modal Body Form --}}
-                    <form wire:submit.prevent="save">
-                        <div class="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 max-h-[70vh] overflow-y-auto">
-                            {{-- Perusahaan --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Perusahaan <span class="text-red-500">*</span>
-                                </label>
-                                <select wire:model="company_code"
-                                    class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('company_code') border-red-500 @enderror">
-                                    <option value="">-- Pilih Perusahaan --</option>
-                                    @foreach ($companies as $comp)
-                                        <option value="{{ $comp->code }}">{{ $comp->name }}</option>
-                                    @endforeach
-                                </select>
-                                @error('company_code')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Status Depo --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Status / Tipe Depo <span class="text-red-500">*</span>
-                                </label>
-                                <select wire:model="status_depo"
-                                    class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('status_depo') border-red-500 @enderror">
-                                    <option value="depo">Depo</option>
-                                    <option value="pusat">Pusat</option>
-                                </select>
-                                @error('status_depo')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Kode Depo --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Kode Depo <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" wire:model="code" placeholder="Contoh: 336" maxlength="3"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('code') border-red-500 @enderror">
-                                @error('code')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Nama Depo --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Nama Depo <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" wire:model="name" placeholder="Contoh: Serang"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('name') border-red-500 @enderror">
-                                @error('name')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Alias --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Alias / Singkatan <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" wire:model="alias" placeholder="Contoh: SRG"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('alias') border-red-500 @enderror">
-                                @error('alias')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Kode Area --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Kode Area <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" wire:model="area_code" placeholder="Contoh: 01" maxlength="2"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('area_code') border-red-500 @enderror">
-                                @error('area_code')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- NPWP --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    NPWP
-                                </label>
-                                <input type="text" wire:model="npwp" placeholder="00.000.000.0-000.000"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('npwp') border-red-500 @enderror">
-                                @error('npwp')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Telepon --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    No. Telepon
-                                </label>
-                                <input type="text" wire:model="phone_no" placeholder="Contoh: 0254-123456"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('phone_no') border-red-500 @enderror">
-                                @error('phone_no')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Kota --}}
-                            <div class="col-span-1">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Kota
-                                </label>
-                                <input type="text" wire:model="city" placeholder="Contoh: Serang"
-                                    class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('city') border-red-500 @enderror">
-                                @error('city')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-
-                            {{-- Kode Pos & Tahun Fiskal --}}
-                            <div class="col-span-1 grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                        Kode Pos
-                                    </label>
-                                    <input type="text" wire:model="postal_code" placeholder="42111"
-                                        class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('postal_code') border-red-500 @enderror">
-                                    @error('postal_code')
-                                        <span class="text-xs text-red-500">{{ $message }}</span>
-                                    @enderror
-                                </div>
-
-                                <div>
-                                    <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                        Tahun Fiskal
-                                    </label>
-                                    <input type="number" wire:model="fiscal_year" placeholder="2026"
-                                        class="input input-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('fiscal_year') border-red-500 @enderror">
-                                    @error('fiscal_year')
-                                        <span class="text-xs text-red-500">{{ $message }}</span>
-                                    @enderror
-                                </div>
-                            </div>
-
-                            {{-- Alamat --}}
-                            <div class="col-span-1 sm:col-span-2">
-                                <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Alamat Lengkap
-                                </label>
-                                <textarea wire:model="address" rows="3" placeholder="Masukkan alamat lengkap depo..."
-                                    class="textarea textarea-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white @error('address') border-red-500 @enderror"></textarea>
-                                @error('address')
-                                    <span class="text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-
-                        {{-- Modal Footer --}}
-                        <div
-                            class="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
-                            <button type="button" wire:click="closeModal"
-                                class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">
-                                Batal
-                            </button>
-                            <button type="submit" class="btn btn-sm btn-success flex items-center gap-1.5"
-                                wire:loading.attr="disabled">
-                                <span wire:loading.remove wire:target="save" class="flex items-center gap-1.5">
-                                    <span class="icon-[tabler--device-floppy] size-4"></span>
-                                    {{ $selectedId ? 'Perbarui Depo' : 'Simpan Depo' }}
-                                </span>
-                                <span wire:loading wire:target="save" class="flex items-center gap-1.5">
-                                    <span class="icon-[tabler--loader-2] size-4 animate-spin"></span>
-                                    Menyimpan...
-                                </span>
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    {{-- Modal Footer --}}
+                    <div
+                        class="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
+                        <button type="button" wire:click="closeModal"
+                            class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">
+                            Batal
+                        </button>
+                        <button type="submit" class="btn btn-sm btn-success flex items-center gap-1.5"
+                            wire:loading.attr="disabled">
+                            <span wire:loading.remove wire:target="save" class="flex items-center gap-1.5">
+                                <span class="icon-[tabler--device-floppy] size-4"></span>
+                                {{ $selectedId ? 'Perbarui Depo' : 'Simpan Depo' }}
+                            </span>
+                            <span wire:loading wire:target="save" class="flex items-center gap-1.5">
+                                <span class="icon-[tabler--loader-2] size-4 animate-spin"></span>
+                                Menyimpan...
+                            </span>
+                        </button>
+                    </div>
+                </form>
             </div>
-        @endif
+        </div>
     @endif
+
 
     {{-- MODAL KONFIRMASI HAPUS --}}
     @if ($bisaHapus)
