@@ -2,28 +2,34 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\Otorisasi;
 use App\Livewire\Concerns\WithToast;
 use App\Models\Company;
 use App\Models\Depo as DepoModel;
 use Illuminate\Database\QueryException;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class Depo extends Component
 {
-    use WithPagination, WithToast;
+    // CekIzin ditambahkan: menyediakan method izinkan($key, $aksi)
+    use WithPagination, WithToast, Otorisasi;
+
+    // Key menu di Casbin. Harus sama dengan 'key' di config/navigation.php
+    // dan dengan middleware permission:depo,read di route.
+    private const RESOURCE = 'depo';
 
     /* [B] STATE TABEL */
     public string $search        = '';
     public string $filterStatus  = '';
-    public string $filterCompany = '';   // company code (TVIP/ASA), BUKAN id
+    public string $filterCompany = '';
     public int    $perPage       = 10;
     public string $sortField     = 'id';
     public string $sortDirection = 'desc';
 
-    /** Whitelist kolom sort */
     private const SORTABLE = [
         'id',
         'company_code',
@@ -39,8 +45,17 @@ class Depo extends Component
     /* [C] STATE MODAL */
     public bool   $isModalOpen       = false;
     public bool   $isDeleteModalOpen = false;
+
+    // #[Locked]: nilai ini TIDAK bisa diubah dari browser.
+    // Tanpa ini, user bisa memalsukan selectedId lewat console Livewire
+    // (misalnya mengubah mode tambah menjadi edit, atau menghapus ID sembarang).
+    // Perubahan dari dalam class (create, edit, resetForm) tetap boleh.
+    #[Locked]
     public ?int   $selectedId        = null;
+
+    #[Locked]
     public ?int   $deleteId          = null;
+
     public string $deleteName        = '';
 
     /* [D] STATE FORM */
@@ -72,7 +87,7 @@ class Depo extends Component
         'status_depo.in'        => 'Status depo harus Pusat atau Depo.',
     ];
 
-    /* [E] HOOK TABEL */
+    /* [E] HOOK TABEL (tidak diubah) */
     public function updatingSearch(): void
     {
         $this->resetPage();
@@ -117,6 +132,9 @@ class Depo extends Component
     /* [F] MODAL TAMBAH / EDIT */
     public function create(): void
     {
+        // Hanya user dengan izin "create" yang boleh membuka form tambah
+        $this->izinkan(self::RESOURCE, 'create');
+
         $this->resetForm();
         $this->resetErrorBag();
         $this->isModalOpen = true;
@@ -124,6 +142,9 @@ class Depo extends Component
 
     public function edit(int $id): void
     {
+        // Hanya user dengan izin "update" yang boleh membuka form edit
+        $this->izinkan(self::RESOURCE, 'update');
+
         $this->resetErrorBag();
         $depo = DepoModel::findOrFail($id);
 
@@ -146,6 +167,12 @@ class Depo extends Component
 
     public function save(): void
     {
+        // save() dipakai untuk tambah dan edit, jadi izinnya mengikuti mode:
+        // selectedId terisi = edit (update), kosong = tambah (create).
+        // Dicek ulang di sini karena method ini bisa dipanggil langsung
+        // tanpa melewati create()/edit().
+        $this->izinkan(self::RESOURCE, $this->selectedId ? 'update' : 'create');
+
         $uniquePerCompany = fn(string $column) => Rule::unique('depos', $column)
             ->where(fn($q) => $q->where('company_code', $this->company_code))
             ->ignore($this->selectedId);
@@ -167,7 +194,7 @@ class Depo extends Component
             ]);
         } catch (ValidationException $e) {
             $this->toast('Data belum valid, periksa kembali isian form.', 'error');
-            throw $e; // wajib di-throw ulang agar error per field tetap tampil
+            throw $e;
         }
 
         try {
@@ -183,7 +210,7 @@ class Depo extends Component
             report($e);
             $this->toast('Gagal menyimpan data. Silakan coba lagi.', 'error');
 
-            return; // modal tetap terbuka
+            return;
         }
 
         $this->closeModal();
@@ -199,6 +226,9 @@ class Depo extends Component
     /* [G] MODAL HAPUS */
     public function confirmDelete(int $id): void
     {
+        // Hanya user dengan izin "delete" yang boleh membuka konfirmasi hapus
+        $this->izinkan(self::RESOURCE, 'delete');
+
         $depo = DepoModel::findOrFail($id);
 
         $this->deleteId          = $id;
@@ -208,6 +238,10 @@ class Depo extends Component
 
     public function delete(): void
     {
+        // Wajib dicek ulang: tanpa ini, user bisa memanggil delete()
+        // langsung dari console tanpa membuka modal konfirmasi.
+        $this->izinkan(self::RESOURCE, 'delete');
+
         if ($this->deleteId) {
             try {
                 $depo = DepoModel::findOrFail($this->deleteId);
@@ -251,6 +285,11 @@ class Depo extends Component
     /* [H] RENDER */
     public function render()
     {
+        // Middleware route hanya jalan saat halaman dimuat pertama kali.
+        // Request Livewire berikutnya (search, sort, pagination) tidak
+        // selalu melewatinya, jadi read dicek lagi di sini.
+        $this->izinkan(self::RESOURCE, 'read');
+
         $depos = DepoModel::query()
             ->with('company')
             ->search($this->search)
