@@ -2,23 +2,37 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TrialBalanceAccountGroup2 extends Model
 {
     protected $table = 'trial_balance_account_group_2';
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
-    public function group1(): BelongsTo
+    /** Induk di group 1 */
+    public function grup1(): ?TrialBalanceAccountGroup1
     {
-        return $this->belongsTo(TrialBalanceAccountGroup1::class, 'tbag_1');
+        return TrialBalanceAccountGroup1::query()
+            ->where('company_code', $this->company_code)
+            ->where('code', $this->tbag_1_code)
+            ->where('account_type', $this->tbag_1_account_type)
+            ->first();
     }
 
-    public function groups3(): HasMany
+    /** Anak di group 3 */
+    public function groups3(): Builder
     {
-        return $this->hasMany(TrialBalanceAccountGroup3::class, 'tbag_2');
+        return TrialBalanceAccountGroup3::query()
+            ->where('company_code', $this->company_code)
+            ->where('tbag_2_code', $this->code)
+            ->where('tbag_1_code', $this->tbag_1_code)
+            ->where('tbag_1_account_type', $this->tbag_1_account_type);
+    }
+
+    public function scopeCompany(Builder $query, string $company): Builder
+    {
+        return $query->where('company_code', $company);
     }
 }

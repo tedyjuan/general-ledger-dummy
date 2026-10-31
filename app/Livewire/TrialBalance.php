@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\Otorisasi;
 use App\Models\TrialBalanceAccountGroup1;
 use App\Models\TrialBalanceAccountGroup2;
 use App\Models\TrialBalanceAccountGroup3;
@@ -12,7 +13,7 @@ use Livewire\WithPagination;
 
 class TrialBalance extends Component
 {
-    use WithPagination;
+    use Otorisasi, WithPagination;
 
     private const TABS = ['group1', 'group2', 'group3'];
 
@@ -46,7 +47,8 @@ class TrialBalance extends Component
 
     public string $description = '';
 
-    public string $tbag_2 = '';
+    /** id baris Group 2 yang dipilih (hanya untuk UI; yang disimpan tetap kode) */
+    public string $parent_id = '';
 
     // ---------- State hapus ----------
     public bool $isDeleteModalOpen = false;
@@ -62,9 +64,9 @@ class TrialBalance extends Component
     {
         return [
             'company_code' => ['required', 'string', 'max:20'],
-            'code' => ['required', 'string', 'max:100'],
+            'code' => ['required', 'string', 'max:20'],
             'description' => ['nullable', 'string', 'max:150'],
-            'tbag_2' => ['required', 'integer', 'exists:trial_balance_account_group_2,id'],
+            'parent_id' => ['required', 'integer', 'exists:trial_balance_account_group_2,id'],
         ];
     }
 
@@ -84,7 +86,7 @@ class TrialBalance extends Component
             'company_code' => 'Perusahaan',
             'code' => 'Kode',
             'description' => 'Deskripsi',
-            'tbag_2' => 'Group 2 (induk)',
+            'parent_id' => 'Group 2 (induk)',
         ];
     }
 
@@ -154,8 +156,8 @@ class TrialBalance extends Component
     // Ganti perusahaan -> pilihan Group 2 berubah, jadi induk harus dipilih ulang
     public function updatedCompanyCode(): void
     {
-        $this->tbag_2 = '';
-        $this->resetValidation('tbag_2');
+        $this->parent_id = '';
+        $this->resetValidation('parent_id');
     }
 
     // =========================================================
@@ -163,6 +165,8 @@ class TrialBalance extends Component
     // =========================================================
     public function create(): void
     {
+        $this->izinkan('trial-balance', 'create');
+
         if ($this->tab !== 'group3') {
             return;
         }
@@ -179,30 +183,42 @@ class TrialBalance extends Component
 
     public function edit(int $id): void
     {
+        $this->izinkan('trial-balance', 'update');
+
         if ($this->tab !== 'group3') {
             return;
         }
 
         $row = TrialBalanceAccountGroup3::findOrFail($id);
 
+        // Cari baris Group 2 induknya lewat kode (komposit)
+        $parent = TrialBalanceAccountGroup2::query()
+            ->where('company_code', $row->company_code)
+            ->where('code', $row->tbag_2_code)
+            ->where('tbag_1_code', $row->tbag_1_code)
+            ->where('tbag_1_account_type', $row->tbag_1_account_type)
+            ->first();
+
         $this->resetForm();
         $this->selectedId = $row->id;
         $this->company_code = (string) $row->company_code;
         $this->code = (string) $row->code;
         $this->description = (string) ($row->description ?? '');
-        $this->tbag_2 = $row->tbag_2 ? (string) $row->tbag_2 : '';
+        $this->parent_id = $parent ? (string) $parent->id : '';
 
         $this->isModalOpen = true;
     }
 
     public function save(): void
     {
+        $this->izinkan('trial-balance', $this->selectedId ? 'update' : 'create');
+
         if ($this->tab !== 'group3') {
             return;
         }
 
-        $this->company_code = trim($this->company_code);
-        $this->code = trim($this->code);
+        $this->company_code = strtoupper(trim($this->company_code));
+        $this->code = strtoupper(trim($this->code));
         $this->description = trim($this->description);
 
         $this->validate();
@@ -210,37 +226,37 @@ class TrialBalance extends Component
         $description = $this->description !== '' ? $this->description : null;
 
         // Induk Group 2 harus milik perusahaan yang sama
-        $parent = TrialBalanceAccountGroup2::find((int) $this->tbag_2);
+        $parent = TrialBalanceAccountGroup2::find((int) $this->parent_id);
         if (! $parent || $parent->company_code !== $this->company_code) {
-            $this->addError('tbag_2', 'Group 2 yang dipilih bukan milik perusahaan ini.');
+            $this->addError('parent_id', 'Group 2 yang dipilih bukan milik perusahaan ini.');
 
             return;
         }
 
-        // Cek kombinasi unik (company_code, code, description, tbag_2)
+        // Kunci unik: company_code + code + tbag_2_code + tbag_1_code + tbag_1_account_type
         $duplicate = TrialBalanceAccountGroup3::query()
             ->where('company_code', $this->company_code)
             ->where('code', $this->code)
-            ->where('tbag_2', (int) $this->tbag_2)
-            ->when(
-                $description === null,
-                fn($q) => $q->whereNull('description'),
-                fn($q) => $q->where('description', $description)
-            )
+            ->where('tbag_2_code', $parent->code)
+            ->where('tbag_1_code', $parent->tbag_1_code)
+            ->where('tbag_1_account_type', $parent->tbag_1_account_type)
             ->when($this->selectedId, fn($q) => $q->where('id', '!=', $this->selectedId))
             ->exists();
 
         if ($duplicate) {
-            $this->addError('code', 'Kombinasi perusahaan, kode, deskripsi, dan Group 2 ini sudah ada.');
+            $this->addError('code', 'Kode ini sudah ada di bawah Group 2 yang dipilih.');
 
             return;
         }
 
+        // Kode rantai disalin dari baris induk, bukan diketik user
         $payload = [
             'company_code' => $this->company_code,
             'code' => $this->code,
             'description' => $description,
-            'tbag_2' => (int) $this->tbag_2,
+            'tbag_2_code' => $parent->code,
+            'tbag_1_code' => $parent->tbag_1_code,
+            'tbag_1_account_type' => $parent->tbag_1_account_type,
         ];
 
         if ($this->selectedId) {
@@ -263,6 +279,8 @@ class TrialBalance extends Component
 
     public function confirmDelete(int $id): void
     {
+        $this->izinkan('trial-balance', 'delete');
+
         if ($this->tab !== 'group3') {
             return;
         }
@@ -276,6 +294,8 @@ class TrialBalance extends Component
 
     public function delete(): void
     {
+        $this->izinkan('trial-balance', 'delete');
+
         if ($this->tab !== 'group3' || ! $this->deleteId) {
             return;
         }
@@ -295,16 +315,15 @@ class TrialBalance extends Component
 
     protected function resetForm(): void
     {
-        $this->reset(['selectedId', 'company_code', 'code', 'description', 'tbag_2']);
+        $this->reset(['selectedId', 'company_code', 'code', 'description', 'parent_id']);
         $this->resetValidation();
     }
 
-    // Daftar perusahaan untuk form (diambil dari data Group 2 & Group 3 yang sudah ada)
+    // Daftar perusahaan untuk form (dari data Group 2 yang sudah ada)
     protected function formCompanies()
     {
         return DB::table('trial_balance_account_group_2')
-            ->select('company_code')
-            ->union(DB::table('trial_balance_account_group_3')->select('company_code'))
+            ->distinct()
             ->orderBy('company_code')
             ->pluck('company_code');
     }
@@ -317,15 +336,21 @@ class TrialBalance extends Component
         }
 
         return DB::table('trial_balance_account_group_2 as g2')
-            ->leftJoin('trial_balance_account_group_1 as g1', 'g1.id', '=', 'g2.tbag_1')
+            ->leftJoin('trial_balance_account_group_1 as g1', function ($j) {
+                $j->on('g1.company_code', '=', 'g2.company_code')
+                    ->on('g1.code', '=', 'g2.tbag_1_code')
+                    ->on('g1.account_type', '=', 'g2.tbag_1_account_type');
+            })
             ->where('g2.company_code', $this->company_code)
-            ->orderBy('g1.code')
+            ->orderBy('g2.tbag_1_code')
+            ->orderBy('g2.tbag_1_account_type')
             ->orderBy('g2.code')
             ->get([
                 'g2.id',
                 'g2.code',
                 'g2.description',
-                'g1.code as g1_code',
+                'g2.tbag_1_code as g1_code',
+                'g2.tbag_1_account_type as g1_type',
                 'g1.description as g1_description',
             ]);
     }
@@ -338,31 +363,47 @@ class TrialBalance extends Component
         return match ($this->tab) {
             'group2' => TrialBalanceAccountGroup2::query()
                 ->from('trial_balance_account_group_2 as g2')
-                ->leftJoin('trial_balance_account_group_1 as g1', 'g1.id', '=', 'g2.tbag_1')
+                ->leftJoin('trial_balance_account_group_1 as g1', function ($j) {
+                    $j->on('g1.company_code', '=', 'g2.company_code')
+                        ->on('g1.code', '=', 'g2.tbag_1_code')
+                        ->on('g1.account_type', '=', 'g2.tbag_1_account_type');
+                })
                 ->select([
                     'g2.*',
-                    'g1.code as g1_code',
+                    'g2.tbag_1_code as g1_code',
                     'g1.description as g1_description',
-                    'g1.account_type as account_type',
+                    'g2.tbag_1_account_type as account_type',
                 ])
                 ->selectSub(
                     DB::table('trial_balance_account_group_3 as c')
                         ->selectRaw('count(*)')
-                        ->whereColumn('c.tbag_2', 'g2.id'),
+                        ->whereColumn('c.company_code', 'g2.company_code')
+                        ->whereColumn('c.tbag_2_code', 'g2.code')
+                        ->whereColumn('c.tbag_1_code', 'g2.tbag_1_code')
+                        ->whereColumn('c.tbag_1_account_type', 'g2.tbag_1_account_type'),
                     'children_count'
                 ),
 
             'group3' => TrialBalanceAccountGroup3::query()
                 ->from('trial_balance_account_group_3 as g3')
-                ->leftJoin('trial_balance_account_group_2 as g2', 'g2.id', '=', 'g3.tbag_2')
-                ->leftJoin('trial_balance_account_group_1 as g1', 'g1.id', '=', 'g2.tbag_1')
+                ->leftJoin('trial_balance_account_group_2 as g2', function ($j) {
+                    $j->on('g2.company_code', '=', 'g3.company_code')
+                        ->on('g2.code', '=', 'g3.tbag_2_code')
+                        ->on('g2.tbag_1_code', '=', 'g3.tbag_1_code')
+                        ->on('g2.tbag_1_account_type', '=', 'g3.tbag_1_account_type');
+                })
+                ->leftJoin('trial_balance_account_group_1 as g1', function ($j) {
+                    $j->on('g1.company_code', '=', 'g3.company_code')
+                        ->on('g1.code', '=', 'g3.tbag_1_code')
+                        ->on('g1.account_type', '=', 'g3.tbag_1_account_type');
+                })
                 ->select([
                     'g3.*',
-                    'g2.code as g2_code',
+                    'g3.tbag_2_code as g2_code',
                     'g2.description as g2_description',
-                    'g1.code as g1_code',
+                    'g3.tbag_1_code as g1_code',
                     'g1.description as g1_description',
-                    'g1.account_type as account_type',
+                    'g3.tbag_1_account_type as account_type',
                 ]),
 
             default => TrialBalanceAccountGroup1::query()
@@ -371,7 +412,9 @@ class TrialBalance extends Component
                 ->selectSub(
                     DB::table('trial_balance_account_group_2 as c')
                         ->selectRaw('count(*)')
-                        ->whereColumn('c.tbag_1', 'g1.id'),
+                        ->whereColumn('c.company_code', 'g1.company_code')
+                        ->whereColumn('c.tbag_1_code', 'g1.code')
+                        ->whereColumn('c.tbag_1_account_type', 'g1.account_type'),
                     'children_count'
                 ),
         };
@@ -380,6 +423,16 @@ class TrialBalance extends Component
     protected function currentAlias(): string
     {
         return ['group1' => 'g1', 'group2' => 'g2', 'group3' => 'g3'][$this->tab];
+    }
+
+    /** Kolom tipe akun sesuai tab aktif */
+    protected function typeColumn(): string
+    {
+        return match ($this->tab) {
+            'group2' => 'g2.tbag_1_account_type',
+            'group3' => 'g3.tbag_1_account_type',
+            default => 'g1.account_type',
+        };
     }
 
     protected function currentTable(): string
@@ -404,17 +457,17 @@ class TrialBalance extends Component
             $term = '%' . $this->search . '%';
 
             $query->where(function ($q) use ($a, $term) {
-                $q->where("$a.code", 'ilike', $term)
-                    ->orWhere("$a.description", 'ilike', $term);
+                $q->where("$a.code", 'like', $term)
+                    ->orWhere("$a.description", 'like', $term);
 
                 if ($a !== 'g1') {
-                    $q->orWhere('g1.code', 'ilike', $term)
-                        ->orWhere('g1.description', 'ilike', $term);
+                    $q->orWhere('g1.code', 'like', $term)
+                        ->orWhere('g1.description', 'like', $term);
                 }
 
                 if ($a === 'g3') {
-                    $q->orWhere('g2.code', 'ilike', $term)
-                        ->orWhere('g2.description', 'ilike', $term);
+                    $q->orWhere('g2.code', 'like', $term)
+                        ->orWhere('g2.description', 'like', $term);
                 }
             });
         }
@@ -424,11 +477,11 @@ class TrialBalance extends Component
         }
 
         if ($this->filterType !== '') {
-            $query->where('g1.account_type', $this->filterType);
+            $query->where($this->typeColumn(), $this->filterType);
         }
 
         $sortColumn = $this->sortField === 'account_type'
-            ? 'g1.account_type'
+            ? $this->typeColumn()
             : "$a.{$this->sortField}";
 
         $perPage = in_array($this->perPage, [10, 25, 50, 100], true) ? $this->perPage : 10;
@@ -455,7 +508,6 @@ class TrialBalance extends Component
                 ->orderBy('company_code')
                 ->pluck('company_code'),
             'accountTypes' => DB::table('trial_balance_account_group_1')
-                ->whereNotNull('account_type')
                 ->distinct()
                 ->orderBy('account_type')
                 ->pluck('account_type'),
