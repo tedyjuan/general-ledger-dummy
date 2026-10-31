@@ -25,6 +25,7 @@
     <div class="flex items-center gap-2 sm:gap-3">
         <x-layout.navbar.dark-mode-toggle />
         <x-layout.navbar.notifications />
+        <livewire:company-switcher />
         <x-layout.navbar.user-menu />
     </div>
 </header>

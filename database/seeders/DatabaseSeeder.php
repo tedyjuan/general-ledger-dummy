@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
             SegmentSeeder::class,
             CasbinSeeder::class,
             Tbag1Seeder::class,
+            Tbag2Seeder::class,
+            Tbag3Seeder::class,
         ]);
     }
 }

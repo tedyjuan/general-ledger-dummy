@@ -2,116 +2,66 @@
 
 namespace App\Livewire;
 
-use App\Livewire\Concerns\Otorisasi;
 use App\Models\TrialBalanceAccountGroup1;
 use App\Models\TrialBalanceAccountGroup2;
 use App\Models\TrialBalanceAccountGroup3;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-class TrialBalance extends Component
+class TrialBalance  extends Component
 {
-    use Otorisasi, WithPagination;
+    use WithPagination;
 
-    private const TABS = ['group1', 'group2', 'group3'];
+    public const ACCOUNT_TYPES = [
+        'asset',
+        'liability',
+        'equity',
+        'retained earning account',
+        'income',
+        'expense',
+    ];
 
-    private const SORTABLE = ['company_code', 'code', 'description', 'account_type', 'updated_at'];
+    private const T1 = 'trial_balance_account_group_1';
+    private const T2 = 'trial_balance_account_group_2';
+    private const T3 = 'trial_balance_account_group_3';
 
-    // ---------- State daftar ----------
     #[Url(as: 'tab')]
     public string $tab = 'group1';
 
-    #[Url(as: 'q')]
+    #[Url(except: '')]
     public string $search = '';
 
     public string $filterCompany = '';
-
     public string $filterType = '';
-
     public int $perPage = 10;
-
     public string $sortField = 'code';
-
     public string $sortDirection = 'asc';
 
-    // ---------- State form CRUD Group 3 ----------
-    public bool $isModalOpen = false;
+    /* ---------------------------------------------------------------
+     |  Navigasi, filter, sort
+     * ------------------------------------------------------------- */
 
-    public ?int $selectedId = null;
-
-    public string $company_code = '';
-
-    public string $code = '';
-
-    public string $description = '';
-
-    /** id baris Group 2 yang dipilih (hanya untuk UI; yang disimpan tetap kode) */
-    public string $parent_id = '';
-
-    // ---------- State hapus ----------
-    public bool $isDeleteModalOpen = false;
-
-    public ?int $deleteId = null;
-
-    public string $deleteName = '';
-
-    // =========================================================
-    // Validasi
-    // =========================================================
-    protected function rules(): array
-    {
-        return [
-            'company_code' => ['required', 'string', 'max:20'],
-            'code' => ['required', 'string', 'max:20'],
-            'description' => ['nullable', 'string', 'max:150'],
-            'parent_id' => ['required', 'integer', 'exists:trial_balance_account_group_2,id'],
-        ];
-    }
-
-    protected function messages(): array
-    {
-        return [
-            'required' => ':attribute wajib diisi.',
-            'max' => ':attribute maksimal :max karakter.',
-            'integer' => ':attribute tidak valid.',
-            'exists' => ':attribute tidak ditemukan.',
-        ];
-    }
-
-    protected function validationAttributes(): array
-    {
-        return [
-            'company_code' => 'Perusahaan',
-            'code' => 'Kode',
-            'description' => 'Deskripsi',
-            'parent_id' => 'Group 2 (induk)',
-        ];
-    }
-
-    // =========================================================
-    // Tab, sort, filter
-    // =========================================================
     public function setTab(string $tab): void
     {
-        if (! in_array($tab, self::TABS, true) || $tab === $this->tab) {
+        if (! in_array($tab, ['group1', 'group2', 'group3'], true)) {
             return;
         }
 
         $this->tab = $tab;
-        $this->filterCompany = '';
-        $this->filterType = '';
         $this->sortField = 'code';
         $this->sortDirection = 'asc';
-        $this->closeModal();
-        $this->closeDeleteModal();
         $this->resetPage();
     }
 
     public function sortBy(string $field): void
     {
-        if (! in_array($field, self::SORTABLE, true)) {
+        if (! in_array($field, ['company_code', 'code', 'description', 'account_type', 'updated_at'], true)) {
             return;
         }
 
@@ -125,396 +75,318 @@ class TrialBalance extends Component
         $this->resetPage();
     }
 
+    public function updated(string $name): void
+    {
+        if (in_array($name, ['search', 'filterCompany', 'filterType', 'perPage'], true)) {
+            $this->resetPage();
+        }
+    }
+
     public function refreshData(): void
     {
         $this->reset(['search', 'filterCompany', 'filterType']);
         $this->resetPage();
+        $this->flushCache();
 
-        $this->dispatch('toast', type: 'success', message: 'Data trial balance diperbarui');
+        // Kirim opsi Group 2 terbaru ke modal Alpine
+        $this->dispatch('g2-options', options: $this->group2Options());
     }
 
-    public function updatedSearch(): void
-    {
-        $this->resetPage();
-    }
+    /* ---------------------------------------------------------------
+     |  Aksi Group 3 (dipanggil Alpine lewat $wire, sekali per aksi)
+     * ------------------------------------------------------------- */
 
-    public function updatedFilterCompany(): void
+    public function saveGroup3(array $data): array
     {
-        $this->resetPage();
-    }
+        $this->guard();
 
-    public function updatedFilterType(): void
-    {
-        $this->resetPage();
-    }
+        $input = [
+            'id'           => $data['id'] ?? null,
+            'company_code' => trim((string) ($data['company_code'] ?? '')),
+            'g2_id'        => $data['g2_id'] ?? null,
+            'code'         => strtoupper(trim((string) ($data['code'] ?? ''))),
+            'description'  => trim((string) ($data['description'] ?? '')),
+        ];
 
-    public function updatedPerPage(): void
-    {
-        $this->resetPage();
-    }
+        $validator = Validator::make($input, [
+            'company_code' => ['required', 'exists:companies,code'],
+            'g2_id'        => ['required', 'integer'],
+            'code'         => ['required', 'string', 'max:20'],
+            'description'  => ['nullable', 'string', 'max:150'],
+        ], [
+            'company_code.required' => 'Perusahaan wajib dipilih.',
+            'company_code.exists'   => 'Perusahaan tidak valid.',
+            'g2_id.required'        => 'Group 2 (induk) wajib dipilih.',
+            'code.required'         => 'Kode Group 3 wajib diisi.',
+            'code.max'              => 'Kode maksimal 20 karakter.',
+            'description.max'       => 'Deskripsi maksimal 150 karakter.',
+        ]);
 
-    // Ganti perusahaan -> pilihan Group 2 berubah, jadi induk harus dipilih ulang
-    public function updatedCompanyCode(): void
-    {
-        $this->parent_id = '';
-        $this->resetValidation('parent_id');
-    }
-
-    // =========================================================
-    // CRUD Group 3
-    // =========================================================
-    public function create(): void
-    {
-        $this->izinkan('trial-balance', 'create');
-
-        if ($this->tab !== 'group3') {
-            return;
+        if ($validator->fails()) {
+            return ['ok' => false, 'errors' => $validator->errors()->toArray()];
         }
 
-        $this->resetForm();
-
-        $companies = $this->formCompanies();
-        if ($companies->count() === 1) {
-            $this->company_code = (string) $companies->first();
-        }
-
-        $this->isModalOpen = true;
-    }
-
-    public function edit(int $id): void
-    {
-        $this->izinkan('trial-balance', 'update');
-
-        if ($this->tab !== 'group3') {
-            return;
-        }
-
-        $row = TrialBalanceAccountGroup3::findOrFail($id);
-
-        // Cari baris Group 2 induknya lewat kode (komposit)
-        $parent = TrialBalanceAccountGroup2::query()
-            ->where('company_code', $row->company_code)
-            ->where('code', $row->tbag_2_code)
-            ->where('tbag_1_code', $row->tbag_1_code)
-            ->where('tbag_1_account_type', $row->tbag_1_account_type)
+        // Group 2 terpilih WAJIB milik perusahaan yang sama
+        $g2 = TrialBalanceAccountGroup2::query()
+            ->where('id', $input['g2_id'])
+            ->where('company_code', $input['company_code'])
             ->first();
 
-        $this->resetForm();
-        $this->selectedId = $row->id;
-        $this->company_code = (string) $row->company_code;
-        $this->code = (string) $row->code;
-        $this->description = (string) ($row->description ?? '');
-        $this->parent_id = $parent ? (string) $parent->id : '';
-
-        $this->isModalOpen = true;
-    }
-
-    public function save(): void
-    {
-        $this->izinkan('trial-balance', $this->selectedId ? 'update' : 'create');
-
-        if ($this->tab !== 'group3') {
-            return;
+        if (! $g2) {
+            return ['ok' => false, 'errors' => ['g2_id' => ['Group 2 tidak valid untuk perusahaan ini.']]];
         }
 
-        $this->company_code = strtoupper(trim($this->company_code));
-        $this->code = strtoupper(trim($this->code));
-        $this->description = trim($this->description);
+        // Group 3 tidak menyimpan id induk, tapi salinan kolom composite dari Group 2
+        $parent = [
+            'company_code'        => $g2->company_code,
+            'tbag_2_code'         => $g2->code,
+            'tbag_1_code'         => $g2->tbag_1_code,
+            'tbag_1_account_type' => $g2->tbag_1_account_type,
+        ];
 
-        $this->validate();
-
-        $description = $this->description !== '' ? $this->description : null;
-
-        // Induk Group 2 harus milik perusahaan yang sama
-        $parent = TrialBalanceAccountGroup2::find((int) $this->parent_id);
-        if (! $parent || $parent->company_code !== $this->company_code) {
-            $this->addError('parent_id', 'Group 2 yang dipilih bukan milik perusahaan ini.');
-
-            return;
-        }
-
-        // Kunci unik: company_code + code + tbag_2_code + tbag_1_code + tbag_1_account_type
+        // Sama dengan unique_tbag_3, abaikan dirinya sendiri saat edit
         $duplicate = TrialBalanceAccountGroup3::query()
-            ->where('company_code', $this->company_code)
-            ->where('code', $this->code)
-            ->where('tbag_2_code', $parent->code)
-            ->where('tbag_1_code', $parent->tbag_1_code)
-            ->where('tbag_1_account_type', $parent->tbag_1_account_type)
-            ->when($this->selectedId, fn($q) => $q->where('id', '!=', $this->selectedId))
+            ->where($parent)
+            ->where('code', $input['code'])
+            ->when($input['id'], fn(Builder $q) => $q->where('id', '!=', $input['id']))
             ->exists();
 
         if ($duplicate) {
-            $this->addError('code', 'Kode ini sudah ada di bawah Group 2 yang dipilih.');
-
-            return;
+            return ['ok' => false, 'errors' => ['code' => ['Kode ini sudah ada pada Group 2 tersebut.']]];
         }
 
-        // Kode rantai disalin dari baris induk, bukan diketik user
-        $payload = [
-            'company_code' => $this->company_code,
-            'code' => $this->code,
-            'description' => $description,
-            'tbag_2_code' => $parent->code,
-            'tbag_1_code' => $parent->tbag_1_code,
-            'tbag_1_account_type' => $parent->tbag_1_account_type,
+        $payload = $parent + [
+            'code'        => $input['code'],
+            'description' => $input['description'] !== '' ? $input['description'] : null,
         ];
 
-        if ($this->selectedId) {
-            TrialBalanceAccountGroup3::findOrFail($this->selectedId)->update($payload);
-            $message = 'Group 3 berhasil diperbarui';
-        } else {
-            TrialBalanceAccountGroup3::create($payload);
-            $message = 'Group 3 berhasil ditambahkan';
-        }
+        try {
+            if ($input['id']) {
+                $row = TrialBalanceAccountGroup3::find($input['id']);
 
-        $this->closeModal();
-        $this->dispatch('toast', type: 'success', message: $message);
-    }
-
-    public function closeModal(): void
-    {
-        $this->isModalOpen = false;
-        $this->resetForm();
-    }
-
-    public function confirmDelete(int $id): void
-    {
-        $this->izinkan('trial-balance', 'delete');
-
-        if ($this->tab !== 'group3') {
-            return;
-        }
-
-        $row = TrialBalanceAccountGroup3::findOrFail($id);
-
-        $this->deleteId = $row->id;
-        $this->deleteName = trim($row->code . ' - ' . ($row->description ?? ''), ' -');
-        $this->isDeleteModalOpen = true;
-    }
-
-    public function delete(): void
-    {
-        $this->izinkan('trial-balance', 'delete');
-
-        if ($this->tab !== 'group3' || ! $this->deleteId) {
-            return;
-        }
-
-        TrialBalanceAccountGroup3::whereKey($this->deleteId)->delete();
-
-        $this->closeDeleteModal();
-        $this->dispatch('toast', type: 'success', message: 'Group 3 berhasil dihapus');
-    }
-
-    public function closeDeleteModal(): void
-    {
-        $this->isDeleteModalOpen = false;
-        $this->deleteId = null;
-        $this->deleteName = '';
-    }
-
-    protected function resetForm(): void
-    {
-        $this->reset(['selectedId', 'company_code', 'code', 'description', 'parent_id']);
-        $this->resetValidation();
-    }
-
-    // Daftar perusahaan untuk form (dari data Group 2 yang sudah ada)
-    protected function formCompanies()
-    {
-        return DB::table('trial_balance_account_group_2')
-            ->distinct()
-            ->orderBy('company_code')
-            ->pluck('company_code');
-    }
-
-    // Pilihan Group 2 (beserta induk Group 1) untuk perusahaan yang dipilih di form
-    protected function formGroup2Options()
-    {
-        if ($this->company_code === '') {
-            return collect();
-        }
-
-        return DB::table('trial_balance_account_group_2 as g2')
-            ->leftJoin('trial_balance_account_group_1 as g1', function ($j) {
-                $j->on('g1.company_code', '=', 'g2.company_code')
-                    ->on('g1.code', '=', 'g2.tbag_1_code')
-                    ->on('g1.account_type', '=', 'g2.tbag_1_account_type');
-            })
-            ->where('g2.company_code', $this->company_code)
-            ->orderBy('g2.tbag_1_code')
-            ->orderBy('g2.tbag_1_account_type')
-            ->orderBy('g2.code')
-            ->get([
-                'g2.id',
-                'g2.code',
-                'g2.description',
-                'g2.tbag_1_code as g1_code',
-                'g2.tbag_1_account_type as g1_type',
-                'g1.description as g1_description',
-            ]);
-    }
-
-    // =========================================================
-    // Query daftar
-    // =========================================================
-    protected function baseQuery()
-    {
-        return match ($this->tab) {
-            'group2' => TrialBalanceAccountGroup2::query()
-                ->from('trial_balance_account_group_2 as g2')
-                ->leftJoin('trial_balance_account_group_1 as g1', function ($j) {
-                    $j->on('g1.company_code', '=', 'g2.company_code')
-                        ->on('g1.code', '=', 'g2.tbag_1_code')
-                        ->on('g1.account_type', '=', 'g2.tbag_1_account_type');
-                })
-                ->select([
-                    'g2.*',
-                    'g2.tbag_1_code as g1_code',
-                    'g1.description as g1_description',
-                    'g2.tbag_1_account_type as account_type',
-                ])
-                ->selectSub(
-                    DB::table('trial_balance_account_group_3 as c')
-                        ->selectRaw('count(*)')
-                        ->whereColumn('c.company_code', 'g2.company_code')
-                        ->whereColumn('c.tbag_2_code', 'g2.code')
-                        ->whereColumn('c.tbag_1_code', 'g2.tbag_1_code')
-                        ->whereColumn('c.tbag_1_account_type', 'g2.tbag_1_account_type'),
-                    'children_count'
-                ),
-
-            'group3' => TrialBalanceAccountGroup3::query()
-                ->from('trial_balance_account_group_3 as g3')
-                ->leftJoin('trial_balance_account_group_2 as g2', function ($j) {
-                    $j->on('g2.company_code', '=', 'g3.company_code')
-                        ->on('g2.code', '=', 'g3.tbag_2_code')
-                        ->on('g2.tbag_1_code', '=', 'g3.tbag_1_code')
-                        ->on('g2.tbag_1_account_type', '=', 'g3.tbag_1_account_type');
-                })
-                ->leftJoin('trial_balance_account_group_1 as g1', function ($j) {
-                    $j->on('g1.company_code', '=', 'g3.company_code')
-                        ->on('g1.code', '=', 'g3.tbag_1_code')
-                        ->on('g1.account_type', '=', 'g3.tbag_1_account_type');
-                })
-                ->select([
-                    'g3.*',
-                    'g3.tbag_2_code as g2_code',
-                    'g2.description as g2_description',
-                    'g3.tbag_1_code as g1_code',
-                    'g1.description as g1_description',
-                    'g3.tbag_1_account_type as account_type',
-                ]),
-
-            default => TrialBalanceAccountGroup1::query()
-                ->from('trial_balance_account_group_1 as g1')
-                ->select('g1.*')
-                ->selectSub(
-                    DB::table('trial_balance_account_group_2 as c')
-                        ->selectRaw('count(*)')
-                        ->whereColumn('c.company_code', 'g1.company_code')
-                        ->whereColumn('c.tbag_1_code', 'g1.code')
-                        ->whereColumn('c.tbag_1_account_type', 'g1.account_type'),
-                    'children_count'
-                ),
-        };
-    }
-
-    protected function currentAlias(): string
-    {
-        return ['group1' => 'g1', 'group2' => 'g2', 'group3' => 'g3'][$this->tab];
-    }
-
-    /** Kolom tipe akun sesuai tab aktif */
-    protected function typeColumn(): string
-    {
-        return match ($this->tab) {
-            'group2' => 'g2.tbag_1_account_type',
-            'group3' => 'g3.tbag_1_account_type',
-            default => 'g1.account_type',
-        };
-    }
-
-    protected function currentTable(): string
-    {
-        return [
-            'group1' => 'trial_balance_account_group_1',
-            'group2' => 'trial_balance_account_group_2',
-            'group3' => 'trial_balance_account_group_3',
-        ][$this->tab];
-    }
-
-    public function render()
-    {
-        if (! in_array($this->tab, self::TABS, true)) {
-            $this->tab = 'group1';
-        }
-
-        $a = $this->currentAlias();
-        $query = $this->baseQuery();
-
-        if ($this->search !== '') {
-            $term = '%' . $this->search . '%';
-
-            $query->where(function ($q) use ($a, $term) {
-                $q->where("$a.code", 'like', $term)
-                    ->orWhere("$a.description", 'like', $term);
-
-                if ($a !== 'g1') {
-                    $q->orWhere('g1.code', 'like', $term)
-                        ->orWhere('g1.description', 'like', $term);
+                if (! $row) {
+                    return ['ok' => false, 'message' => 'Data tidak ditemukan, mungkin sudah dihapus.'];
                 }
 
-                if ($a === 'g3') {
-                    $q->orWhere('g2.code', 'like', $term)
-                        ->orWhere('g2.description', 'like', $term);
-                }
+                $row->update($payload);
+                $message = 'Group 3 berhasil diperbarui.';
+            } else {
+                TrialBalanceAccountGroup3::create($payload);
+                $message = 'Group 3 berhasil ditambahkan.';
+            }
+        } catch (QueryException $e) {
+            report($e);
+
+            return ['ok' => false, 'message' => 'Gagal menyimpan data. Coba lagi.'];
+        }
+
+        $this->flushCache();
+
+        return ['ok' => true, 'message' => $message];
+    }
+
+    public function deleteGroup3(int $id): array
+    {
+        $this->guard();
+
+        $row = TrialBalanceAccountGroup3::find($id);
+
+        if (! $row) {
+            return ['ok' => true, 'message' => 'Data sudah tidak ada.'];
+        }
+
+        try {
+            $row->delete();
+        } catch (QueryException $e) {
+            // FK restrictOnDelete: masih dipakai tabel lain
+            return ['ok' => false, 'message' => 'Tidak bisa dihapus karena masih dipakai data lain.'];
+        }
+
+        $this->flushCache();
+
+        return ['ok' => true, 'message' => 'Group 3 berhasil dihapus.'];
+    }
+
+    /** Casbin: method Livewire bisa dipanggil langsung dari browser, jadi cek izin di sini. */
+    protected function guard(): void
+    {
+        // contoh:
+        // abort_unless(Enforcer::enforce(auth()->user()->role, 'trial-balance', 'write'), 403);
+    }
+
+    /* ---------------------------------------------------------------
+     |  Query data
+     * ------------------------------------------------------------- */
+
+    protected function rowsQuery(): Builder
+    {
+        $tab = $this->tab;
+
+        $query = match ($tab) {
+            'group3' => TrialBalanceAccountGroup3::query()->from(self::T3 . ' as t'),
+            'group2' => TrialBalanceAccountGroup2::query()->from(self::T2 . ' as t'),
+            default  => TrialBalanceAccountGroup1::query()->from(self::T1 . ' as t'),
+        };
+
+        $typeCol = $tab === 'group1' ? 't.account_type' : 't.tbag_1_account_type';
+
+        $query->select('t.*');
+
+        if ($tab === 'group1') {
+            $query->selectSub(
+                DB::table(self::T2 . ' as c')
+                    ->selectRaw('count(*)')
+                    ->whereColumn('c.company_code', 't.company_code')
+                    ->whereColumn('c.tbag_1_code', 't.code')
+                    ->whereColumn('c.tbag_1_account_type', 't.account_type'),
+                'children_count'
+            );
+        }
+
+        if ($tab === 'group2') {
+            $query->selectSub(
+                DB::table(self::T3 . ' as c')
+                    ->selectRaw('count(*)')
+                    ->whereColumn('c.company_code', 't.company_code')
+                    ->whereColumn('c.tbag_2_code', 't.code')
+                    ->whereColumn('c.tbag_1_code', 't.tbag_1_code')
+                    ->whereColumn('c.tbag_1_account_type', 't.tbag_1_account_type'),
+                'children_count'
+            );
+        }
+
+        if ($tab !== 'group1') {
+            $query->addSelect(['t.tbag_1_account_type as account_type', 'g1.code as g1_code', 'g1.description as g1_description'])
+                ->leftJoin(self::T1 . ' as g1', function ($join) {
+                    $join->on('g1.company_code', '=', 't.company_code')
+                        ->on('g1.code', '=', 't.tbag_1_code')
+                        ->on('g1.account_type', '=', 't.tbag_1_account_type');
+                });
+        }
+
+        if ($tab === 'group3') {
+            $query->addSelect(['g2.id as g2_id', 'g2.code as g2_code', 'g2.description as g2_description'])
+                ->leftJoin(self::T2 . ' as g2', function ($join) {
+                    $join->on('g2.company_code', '=', 't.company_code')
+                        ->on('g2.code', '=', 't.tbag_2_code')
+                        ->on('g2.tbag_1_code', '=', 't.tbag_1_code')
+                        ->on('g2.tbag_1_account_type', '=', 't.tbag_1_account_type');
+                });
+        }
+
+        // Filter
+        $term = mb_strtolower(trim($this->search));
+        if ($term !== '') {
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $term) . '%';
+            $query->where(function (Builder $q) use ($like) {
+                $q->whereRaw('LOWER(t.code) LIKE ?', [$like])
+                    ->orWhereRaw('LOWER(t.description) LIKE ?', [$like]);
             });
         }
 
         if ($this->filterCompany !== '') {
-            $query->where("$a.company_code", $this->filterCompany);
+            $query->where('t.company_code', $this->filterCompany);
         }
 
         if ($this->filterType !== '') {
-            $query->where($this->typeColumn(), $this->filterType);
+            $query->where($typeCol, $this->filterType);
         }
 
-        $sortColumn = $this->sortField === 'account_type'
-            ? $this->typeColumn()
-            : "$a.{$this->sortField}";
+        // Urutan: default urut dari induk Group 1 untuk Group 2 dan 3
+        if ($this->sortField === 'code' && $tab !== 'group1') {
+            $query->orderBy('t.company_code')->orderBy('t.tbag_1_code');
 
-        $perPage = in_array($this->perPage, [10, 25, 50, 100], true) ? $this->perPage : 10;
+            if ($tab === 'group3') {
+                $query->orderBy('t.tbag_2_code');
+            }
+        }
 
-        $query->orderBy($sortColumn, $this->sortDirection)->orderBy("$a.id");
+        $column = match ($this->sortField) {
+            'account_type' => $typeCol,
+            default        => 't.' . $this->sortField,
+        };
 
-        $rows = $query->paginate($perPage);
+        $direction = $this->sortDirection === 'desc' ? 'desc' : 'asc';
 
-        // Setelah hapus data terakhir di sebuah halaman, mundur ke halaman terakhir yang valid
+        return $query->orderBy($column, $direction)->orderBy('t.id');
+    }
+
+    protected function perPageValue(): int
+    {
+        return in_array($this->perPage, [10, 25, 50, 100], true) ? $this->perPage : 10;
+    }
+
+    /* ---------------------------------------------------------------
+     |  Data pendukung (di-cache supaya render tidak query berulang)
+     * ------------------------------------------------------------- */
+
+    protected function counts(): array
+    {
+        return Cache::remember('tb.counts', 300, fn() => [
+            'group1' => DB::table(self::T1)->count(),
+            'group2' => DB::table(self::T2)->count(),
+            'group3' => DB::table(self::T3)->count(),
+        ]);
+    }
+
+    protected function companies(): array
+    {
+        return Cache::remember('tb.companies', 300, fn() => DB::table('companies')->orderBy('code')->pluck('code')->all());
+    }
+
+    protected function group2Options(): array
+    {
+        return Cache::remember('tb.g2options', 300, fn() => DB::table(self::T2 . ' as g2')
+            ->leftJoin(self::T1 . ' as g1', function ($join) {
+                $join->on('g1.company_code', '=', 'g2.company_code')
+                    ->on('g1.code', '=', 'g2.tbag_1_code')
+                    ->on('g1.account_type', '=', 'g2.tbag_1_account_type');
+            })
+            ->orderBy('g2.company_code')
+            ->orderBy('g2.tbag_1_code')
+            ->orderBy('g2.code')
+            ->get([
+                'g2.id',
+                'g2.company_code',
+                'g2.code',
+                'g2.description',
+                'g2.tbag_1_code as g1_code',
+                'g1.description as g1_description',
+            ])
+            ->map(fn($r) => [
+                'id'             => (int) $r->id,
+                'company_code'   => $r->company_code,
+                'code'           => $r->code,
+                'description'    => $r->description,
+                'g1_code'        => $r->g1_code,
+                'g1_description' => $r->g1_description,
+            ])
+            ->all());
+    }
+
+    protected function flushCache(): void
+    {
+        Cache::forget('tb.counts');
+        Cache::forget('tb.companies');
+        Cache::forget('tb.g2options');
+    }
+
+    public function render()
+    {
+        $rows = $this->rowsQuery()->paginate($this->perPageValue());
+
+        // Halaman terakhir kosong (misalnya setelah hapus): mundur satu halaman
         if ($rows->isEmpty() && $rows->currentPage() > 1) {
             $this->setPage($rows->lastPage());
-            $rows = $query->paginate($perPage);
+            $rows = $this->rowsQuery()->paginate($this->perPageValue());
         }
 
         return view('livewire.master.trial-balance', [
-            'rows' => $rows,
-            'counts' => [
-                'group1' => TrialBalanceAccountGroup1::count(),
-                'group2' => TrialBalanceAccountGroup2::count(),
-                'group3' => TrialBalanceAccountGroup3::count(),
-            ],
-            'companies' => DB::table($this->currentTable())
-                ->distinct()
-                ->orderBy('company_code')
-                ->pluck('company_code'),
-            'accountTypes' => DB::table('trial_balance_account_group_1')
-                ->distinct()
-                ->orderBy('account_type')
-                ->pluck('account_type'),
-            'formCompanies' => $this->isModalOpen ? $this->formCompanies() : collect(),
-            'group2Options' => $this->isModalOpen
-                ? $this->formGroup2Options()->groupBy('g1_code')
-                : collect(),
+            'rows'          => $rows,
+            'counts'        => $this->counts(),
+            'companies'     => collect($this->companies()),
+            'accountTypes'  => self::ACCOUNT_TYPES,
+            'group2Options' => $this->group2Options(),
         ]);
     }
 }

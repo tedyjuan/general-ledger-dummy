@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToCompany;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Divisi extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToCompany;
 
     protected $table = 'divisions';
 
@@ -46,8 +47,6 @@ class Divisi extends Model
                 ->orWhere('alias', 'like', "%{$term}%");
         });
     }
-
-
 
     public function scopeForCompany(Builder $query, ?string $companyCode): Builder
     {
