@@ -2,9 +2,11 @@
 
 namespace App\Livewire;
 
-use App\Models\TrialBalanceAccountGroup1;
+use App\Livewire\Concerns\ActiveCompany;
+use App\Livewire\Concerns\Otorisasi;
 use App\Models\TrialBalanceAccountGroup2;
 use App\Models\TrialBalanceAccountGroup3;
+use App\Models\TrialBalanceAccountGroup1;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Cache;
@@ -14,9 +16,12 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-class TrialBalance  extends Component
+class TrialBalance extends Component
 {
-    use WithPagination;
+    use WithPagination, Otorisasi, ActiveCompany;
+
+    // Samakan dengan key menu di Casbin / config/navigation.php / middleware route
+    private const RESOURCE = 'trial-balance';
 
     public const ACCOUNT_TYPES = [
         'asset',
@@ -37,7 +42,6 @@ class TrialBalance  extends Component
     #[Url(except: '')]
     public string $search = '';
 
-    public string $filterCompany = '';
     public string $filterType = '';
     public int $perPage = 10;
     public string $sortField = 'code';
@@ -61,7 +65,7 @@ class TrialBalance  extends Component
 
     public function sortBy(string $field): void
     {
-        if (! in_array($field, ['company_code', 'code', 'description', 'account_type', 'updated_at'], true)) {
+        if (! in_array($field, ['code', 'description', 'account_type', 'updated_at'], true)) {
             return;
         }
 
@@ -77,14 +81,17 @@ class TrialBalance  extends Component
 
     public function updated(string $name): void
     {
-        if (in_array($name, ['search', 'filterCompany', 'filterType', 'perPage'], true)) {
+        if (in_array($name, ['search', 'filterType', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function refreshData(): void
     {
-        $this->reset(['search', 'filterCompany', 'filterType']);
+        $this->izinkan(self::RESOURCE, 'read');
+        $this->ensureSameCompany();
+
+        $this->reset(['search', 'filterType']);
         $this->resetPage();
         $this->flushCache();
 
@@ -98,47 +105,49 @@ class TrialBalance  extends Component
 
     public function saveGroup3(array $data): array
     {
-        $this->guard();
+        $isEdit = ! empty($data['id']);
+
+        $this->izinkan(self::RESOURCE, $isEdit ? 'update' : 'create');
+        $this->ensureSameCompany();
+
+        // Company SELALU dari session, bukan dari browser
+        $company = $this->tabCompany;
 
         $input = [
-            'id'           => $data['id'] ?? null,
-            'company_code' => trim((string) ($data['company_code'] ?? '')),
-            'g2_id'        => $data['g2_id'] ?? null,
-            'code'         => strtoupper(trim((string) ($data['code'] ?? ''))),
-            'description'  => trim((string) ($data['description'] ?? '')),
+            'id'          => $data['id'] ?? null,
+            'g2_id'       => $data['g2_id'] ?? null,
+            'code'        => strtoupper(trim((string) ($data['code'] ?? ''))),
+            'description' => trim((string) ($data['description'] ?? '')),
         ];
 
         $validator = Validator::make($input, [
-            'company_code' => ['required', 'exists:companies,code'],
-            'g2_id'        => ['required', 'integer'],
-            'code'         => ['required', 'string', 'max:20'],
-            'description'  => ['nullable', 'string', 'max:150'],
+            'g2_id'       => ['required', 'integer'],
+            'code'        => ['required', 'string', 'max:20'],
+            'description' => ['nullable', 'string', 'max:150'],
         ], [
-            'company_code.required' => 'Perusahaan wajib dipilih.',
-            'company_code.exists'   => 'Perusahaan tidak valid.',
-            'g2_id.required'        => 'Group 2 (induk) wajib dipilih.',
-            'code.required'         => 'Kode Group 3 wajib diisi.',
-            'code.max'              => 'Kode maksimal 20 karakter.',
-            'description.max'       => 'Deskripsi maksimal 150 karakter.',
+            'g2_id.required' => 'Group 2 (induk) wajib dipilih.',
+            'code.required'  => 'Kode Group 3 wajib diisi.',
+            'code.max'       => 'Kode maksimal 20 karakter.',
+            'description.max' => 'Deskripsi maksimal 150 karakter.',
         ]);
 
         if ($validator->fails()) {
             return ['ok' => false, 'errors' => $validator->errors()->toArray()];
         }
 
-        // Group 2 terpilih WAJIB milik perusahaan yang sama
+        // Group 2 terpilih WAJIB milik company aktif
         $g2 = TrialBalanceAccountGroup2::query()
+            ->company($company)
             ->where('id', $input['g2_id'])
-            ->where('company_code', $input['company_code'])
             ->first();
 
         if (! $g2) {
             return ['ok' => false, 'errors' => ['g2_id' => ['Group 2 tidak valid untuk perusahaan ini.']]];
         }
 
-        // Group 3 tidak menyimpan id induk, tapi salinan kolom composite dari Group 2
+        // Group 3 menyimpan salinan kolom composite dari Group 2
         $parent = [
-            'company_code'        => $g2->company_code,
+            'company_code'        => $company,
             'tbag_2_code'         => $g2->code,
             'tbag_1_code'         => $g2->tbag_1_code,
             'tbag_1_account_type' => $g2->tbag_1_account_type,
@@ -162,7 +171,8 @@ class TrialBalance  extends Component
 
         try {
             if ($input['id']) {
-                $row = TrialBalanceAccountGroup3::find($input['id']);
+                // Terbatas ke company aktif: ID company lain dianggap tidak ada
+                $row = TrialBalanceAccountGroup3::query()->company($company)->find($input['id']);
 
                 if (! $row) {
                     return ['ok' => false, 'message' => 'Data tidak ditemukan, mungkin sudah dihapus.'];
@@ -187,9 +197,10 @@ class TrialBalance  extends Component
 
     public function deleteGroup3(int $id): array
     {
-        $this->guard();
+        $this->izinkan(self::RESOURCE, 'delete');
+        $this->ensureSameCompany();
 
-        $row = TrialBalanceAccountGroup3::find($id);
+        $row = TrialBalanceAccountGroup3::query()->company($this->tabCompany)->find($id);
 
         if (! $row) {
             return ['ok' => true, 'message' => 'Data sudah tidak ada.'];
@@ -207,20 +218,14 @@ class TrialBalance  extends Component
         return ['ok' => true, 'message' => 'Group 3 berhasil dihapus.'];
     }
 
-    /** Casbin: method Livewire bisa dipanggil langsung dari browser, jadi cek izin di sini. */
-    protected function guard(): void
-    {
-        // contoh:
-        // abort_unless(Enforcer::enforce(auth()->user()->role, 'trial-balance', 'write'), 403);
-    }
-
     /* ---------------------------------------------------------------
      |  Query data
      * ------------------------------------------------------------- */
 
     protected function rowsQuery(): Builder
     {
-        $tab = $this->tab;
+        $tab     = $this->tab;
+        $company = $this->tabCompany;
 
         $query = match ($tab) {
             'group3' => TrialBalanceAccountGroup3::query()->from(self::T3 . ' as t'),
@@ -230,7 +235,8 @@ class TrialBalance  extends Component
 
         $typeCol = $tab === 'group1' ? 't.account_type' : 't.tbag_1_account_type';
 
-        $query->select('t.*');
+        // Filter company aktif (manual karena tabel dialiaskan)
+        $query->select('t.*')->where('t.company_code', $company);
 
         if ($tab === 'group1') {
             $query->selectSub(
@@ -274,7 +280,7 @@ class TrialBalance  extends Component
                 });
         }
 
-        // Filter
+        // Pencarian
         $term = mb_strtolower(trim($this->search));
         if ($term !== '') {
             $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $term) . '%';
@@ -284,17 +290,13 @@ class TrialBalance  extends Component
             });
         }
 
-        if ($this->filterCompany !== '') {
-            $query->where('t.company_code', $this->filterCompany);
-        }
-
         if ($this->filterType !== '') {
             $query->where($typeCol, $this->filterType);
         }
 
-        // Urutan: default urut dari induk Group 1 untuk Group 2 dan 3
+        // Default: urut dari induk Group 1 untuk Group 2 dan 3
         if ($this->sortField === 'code' && $tab !== 'group1') {
-            $query->orderBy('t.company_code')->orderBy('t.tbag_1_code');
+            $query->orderBy('t.tbag_1_code');
 
             if ($tab === 'group3') {
                 $query->orderBy('t.tbag_2_code');
@@ -317,37 +319,35 @@ class TrialBalance  extends Component
     }
 
     /* ---------------------------------------------------------------
-     |  Data pendukung (di-cache supaya render tidak query berulang)
+     |  Data pendukung (cache per company)
      * ------------------------------------------------------------- */
 
     protected function counts(): array
     {
-        return Cache::remember('tb.counts', 300, fn() => [
-            'group1' => DB::table(self::T1)->count(),
-            'group2' => DB::table(self::T2)->count(),
-            'group3' => DB::table(self::T3)->count(),
-        ]);
-    }
+        $c = $this->tabCompany;
 
-    protected function companies(): array
-    {
-        return Cache::remember('tb.companies', 300, fn() => DB::table('companies')->orderBy('code')->pluck('code')->all());
+        return Cache::remember("tb.counts.$c", 300, fn() => [
+            'group1' => DB::table(self::T1)->where('company_code', $c)->count(),
+            'group2' => DB::table(self::T2)->where('company_code', $c)->count(),
+            'group3' => DB::table(self::T3)->where('company_code', $c)->count(),
+        ]);
     }
 
     protected function group2Options(): array
     {
-        return Cache::remember('tb.g2options', 300, fn() => DB::table(self::T2 . ' as g2')
+        $c = $this->tabCompany;
+
+        return Cache::remember("tb.g2options.$c", 300, fn() => DB::table(self::T2 . ' as g2')
             ->leftJoin(self::T1 . ' as g1', function ($join) {
                 $join->on('g1.company_code', '=', 'g2.company_code')
                     ->on('g1.code', '=', 'g2.tbag_1_code')
                     ->on('g1.account_type', '=', 'g2.tbag_1_account_type');
             })
-            ->orderBy('g2.company_code')
+            ->where('g2.company_code', $c)
             ->orderBy('g2.tbag_1_code')
             ->orderBy('g2.code')
             ->get([
                 'g2.id',
-                'g2.company_code',
                 'g2.code',
                 'g2.description',
                 'g2.tbag_1_code as g1_code',
@@ -355,7 +355,6 @@ class TrialBalance  extends Component
             ])
             ->map(fn($r) => [
                 'id'             => (int) $r->id,
-                'company_code'   => $r->company_code,
                 'code'           => $r->code,
                 'description'    => $r->description,
                 'g1_code'        => $r->g1_code,
@@ -366,13 +365,17 @@ class TrialBalance  extends Component
 
     protected function flushCache(): void
     {
-        Cache::forget('tb.counts');
-        Cache::forget('tb.companies');
-        Cache::forget('tb.g2options');
+        $c = $this->tabCompany;
+
+        Cache::forget("tb.counts.$c");
+        Cache::forget("tb.g2options.$c");
     }
 
     public function render()
     {
+        $this->izinkan(self::RESOURCE, 'read');
+        $this->ensureSameCompany();
+
         $rows = $this->rowsQuery()->paginate($this->perPageValue());
 
         // Halaman terakhir kosong (misalnya setelah hapus): mundur satu halaman
@@ -384,9 +387,9 @@ class TrialBalance  extends Component
         return view('livewire.master.trial-balance', [
             'rows'          => $rows,
             'counts'        => $this->counts(),
-            'companies'     => collect($this->companies()),
             'accountTypes'  => self::ACCOUNT_TYPES,
             'group2Options' => $this->group2Options(),
+            'activeCompany' => $this->tabCompany,
         ]);
     }
 }

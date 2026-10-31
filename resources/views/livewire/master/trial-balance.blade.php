@@ -25,18 +25,27 @@
             return $sortDirection === 'asc' ? 'icon-[tabler--chevron-up]' : 'icon-[tabler--chevron-down]';
         };
 
-        $hasFilter = $search !== '' || $filterCompany !== '' || $filterType !== '';
+        $user = auth()->user();
+        $bisaTambah = (bool) $user?->izin('trial-balance', 'create');
+        $bisaEdit = (bool) $user?->izin('trial-balance', 'update');
+        $bisaHapus = (bool) $user?->izin('trial-balance', 'delete');
+        $adaAksi = $bisaEdit || $bisaHapus;
+
+        $hasFilter = $search !== '' || $filterType !== '';
         $colspan = match ($tab) {
-            'group3' => 9,
-            'group2' => 8,
-            default => 7,
+            'group3' => 7 + ($adaAksi ? 1 : 0),
+            'group2' => 7,
+            default => 6,
         };
     @endphp
 
     {{-- HEADER --}}
     <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <h1 class="text-2xl font-bold tracking-tight text-slate-800 dark:text-white">Trial Balance</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-800 dark:text-white">
+                Trial Balance
+                <span class="badge badge-soft badge-success ml-2 align-middle text-xs">{{ $activeCompany }}</span>
+            </h1>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 Daftar kelompok akun trial balance dari Group 1 sampai Group 3
             </p>
@@ -50,8 +59,7 @@
                 Refresh
             </button>
 
-            @if ($tab === 'group3')
-                {{-- Alpine: tidak ke server --}}
+            @if ($tab === 'group3' && $bisaTambah)
                 <button type="button" @click="$dispatch('g3-open', {})"
                     class="btn btn-success flex items-center gap-1.5 shadow-xs">
                     <span class="icon-[tabler--plus] size-4"></span>
@@ -66,7 +74,7 @@
         class="card card-border relative overflow-hidden border-emerald-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
 
         <div wire:loading.delay.shorter
-            wire:target="setTab,sortBy,search,filterCompany,filterType,perPage,refreshData,gotoPage,previousPage,nextPage"
+            wire:target="setTab,sortBy,search,filterType,perPage,refreshData,gotoPage,previousPage,nextPage"
             class="absolute inset-x-0 top-0 z-10 h-0.5 animate-pulse bg-emerald-500"></div>
 
         {{-- Tabs --}}
@@ -97,7 +105,7 @@
             <div>
                 <h2 class="font-semibold text-slate-800 dark:text-white">Trial Balance {{ $tabs[$tab]['label'] }}</h2>
                 <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {{ $rows->total() }} data ditemukan
+                    {{ $rows->total() }} data ditemukan pada {{ $activeCompany }}
                     @if ($tab !== 'group1')
                         &middot; urut dari induk Group 1
                     @endif
@@ -114,16 +122,6 @@
                 </div>
 
                 <div class="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-                    @if ($companies->count() > 1)
-                        <select wire:model.live="filterCompany"
-                            class="select select-sm w-full bg-white sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-white">
-                            <option value="">Semua Perusahaan</option>
-                            @foreach ($companies as $company)
-                                <option value="{{ $company }}">{{ $company }}</option>
-                            @endforeach
-                        </select>
-                    @endif
-
                     <select wire:model.live="filterType"
                         class="select select-sm w-full bg-white sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-white">
                         <option value="">Semua Tipe Akun</option>
@@ -149,13 +147,6 @@
                 <thead class="bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                     <tr>
                         <th class="w-12 text-center">No.</th>
-
-                        <th class="cursor-pointer select-none hover:text-emerald-700 dark:hover:text-emerald-400"
-                            wire:click="sortBy('company_code')">
-                            <div class="flex items-center gap-1">Perusahaan
-                                <span class="{{ $sortIcon('company_code') }} size-3.5"></span>
-                            </div>
-                        </th>
 
                         <th class="cursor-pointer select-none hover:text-emerald-700 dark:hover:text-emerald-400"
                             wire:click="sortBy('code')">
@@ -197,7 +188,7 @@
                             </div>
                         </th>
 
-                        @if ($tab === 'group3')
+                        @if ($tab === 'group3' && $adaAksi)
                             <th class="text-center">Aksi</th>
                         @endif
                     </tr>
@@ -209,11 +200,6 @@
                             class="transition-colors hover:bg-emerald-50/40 dark:hover:bg-slate-800/60">
                             <td class="text-center text-slate-500 dark:text-slate-400">
                                 {{ ($rows->currentPage() - 1) * $rows->perPage() + $loop->iteration }}
-                            </td>
-
-                            <td>
-                                <span
-                                    class="badge badge-soft badge-neutral text-xs font-medium">{{ $row->company_code }}</span>
                             </td>
 
                             <td class="whitespace-nowrap font-semibold text-emerald-700 dark:text-emerald-400">
@@ -280,30 +266,32 @@
                                 {{ $row->updated_at?->format('d M Y, H:i') ?? '-' }}
                             </td>
 
-                            @if ($tab === 'group3')
+                            @if ($tab === 'group3' && $adaAksi)
                                 <td>
                                     <div class="flex items-center justify-center gap-1.5">
-                                        {{-- Edit & hapus: data diambil dari baris, tanpa request ke server --}}
-                                        <button type="button" title="Edit Group 3" aria-label="Edit Group 3"
-                                            class="btn btn-sm btn-outline btn-primary"
-                                            @click="$dispatch('g3-open', @js([
+                                        @if ($bisaEdit)
+                                            <button type="button" title="Edit Group 3" aria-label="Edit Group 3"
+                                                class="btn btn-sm btn-outline btn-primary"
+                                                @click="$dispatch('g3-open', @js([
     'id' => $row->id,
-    'company_code' => $row->company_code,
     'code' => $row->code,
     'description' => $row->description,
     'g2_id' => $row->g2_id,
 ]))">
-                                            <span class="icon-[tabler--pencil] size-4"></span>
-                                        </button>
+                                                <span class="icon-[tabler--pencil] size-4"></span>
+                                            </button>
+                                        @endif
 
-                                        <button type="button" title="Hapus Group 3" aria-label="Hapus Group 3"
-                                            class="btn btn-sm btn-outline btn-error"
-                                            @click="$dispatch('g3-delete', @js([
+                                        @if ($bisaHapus)
+                                            <button type="button" title="Hapus Group 3" aria-label="Hapus Group 3"
+                                                class="btn btn-sm btn-outline btn-error"
+                                                @click="$dispatch('g3-delete', @js([
     'id' => $row->id,
     'name' => $row->code . ($row->description ? ' - ' . $row->description : ''),
 ]))">
-                                            <span class="icon-[tabler--trash] size-4"></span>
-                                        </button>
+                                                <span class="icon-[tabler--trash] size-4"></span>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             @endif
@@ -323,7 +311,7 @@
                                     <p class="text-xs text-slate-400">
                                         @if ($hasFilter)
                                             Ubah kata kunci atau reset filter untuk melihat data lain.
-                                        @elseif ($tab === 'group3')
+                                        @elseif ($tab === 'group3' && $bisaTambah)
                                             Belum ada data Group 3. Klik Tambah Group 3 untuk membuat.
                                         @else
                                             Belum ada data pada Trial Balance {{ $tabs[$tab]['label'] }}.
@@ -336,7 +324,7 @@
                                                 Reset filter
                                             </button>
                                         @endif
-                                        @if ($tab === 'group3')
+                                        @if ($tab === 'group3' && $bisaTambah)
                                             <button type="button" @click="$dispatch('g3-open', {})"
                                                 class="btn btn-sm btn-success">
                                                 Tambah Group 3
@@ -367,26 +355,23 @@
         </div>
     </div>
 
-    {{-- =====================================================================
-         MODAL, KONFIRMASI HAPUS, TOAST: semuanya Alpine.
-         wire:ignore supaya state modal tidak ditimpa saat tabel di-render ulang.
-         ===================================================================== --}}
+    {{-- MODAL, KONFIRMASI HAPUS, TOAST: semuanya Alpine --}}
     <div wire:ignore x-data="{
         g2: @js($group2Options),
-        companies: @js($companies->values()),
+        company: @js($activeCompany),
         formOpen: false,
         delOpen: false,
         saving: false,
         deleting: false,
         errors: {},
-        form: { id: null, company_code: '', g2_id: '', code: '', description: '' },
+        form: { id: null, g2_id: '', code: '', description: '' },
         del: { id: null, name: '' },
         toast: { show: false, type: 'success', message: '', timer: null },
     
+        // Opsi Group 2 sudah khusus company aktif (difilter di server), cukup dikelompokkan
         get grouped() {
-            if (!this.form.company_code) return [];
             const map = {};
-            this.g2.filter(o => o.company_code === this.form.company_code).forEach(o => {
+            this.g2.forEach(o => {
                 const key = o.g1_code || '';
                 if (!map[key]) {
                     map[key] = {
@@ -405,7 +390,6 @@
             this.errors = {};
             this.form = {
                 id: d.id || null,
-                company_code: d.company_code || '',
                 g2_id: '',
                 code: d.code || '',
                 description: d.description || ''
@@ -418,15 +402,8 @@
             });
         },
     
-        onCompanyChange() {
-            this.form.g2_id = '';
-            delete this.errors.g2_id;
-            delete this.errors.company_code;
-        },
-    
         validateLocal() {
             const e = {};
-            if (!this.form.company_code) e.company_code = ['Perusahaan wajib dipilih.'];
             if (!this.form.g2_id) e.g2_id = ['Group 2 (induk) wajib dipilih.'];
             if (!this.form.code.trim()) e.code = ['Kode Group 3 wajib diisi.'];
             else if (this.form.code.trim().length > 20) e.code = ['Kode maksimal 20 karakter.'];
@@ -439,9 +416,9 @@
             if (this.saving || !this.validateLocal()) return;
             this.saving = true;
             try {
+                // company tidak dikirim: server memakai session
                 const res = await $wire.saveGroup3({
                     id: this.form.id,
-                    company_code: this.form.company_code,
                     g2_id: Number(this.form.g2_id),
                     code: this.form.code,
                     description: this.form.description
@@ -454,7 +431,7 @@
                     if (res.message) this.notify('error', res.message);
                 }
             } catch (err) {
-                this.notify('error', 'Terjadi kesalahan. Coba lagi.');
+                this.notify('error', 'Terjadi kesalahan. Muat ulang halaman lalu coba lagi.');
             } finally {
                 this.saving = false;
             }
@@ -473,7 +450,7 @@
                 this.delOpen = false;
                 this.notify(res.ok ? 'success' : 'error', res.message);
             } catch (err) {
-                this.notify('error', 'Terjadi kesalahan. Coba lagi.');
+                this.notify('error', 'Terjadi kesalahan. Muat ulang halaman lalu coba lagi.');
             } finally {
                 this.deleting = false;
             }
@@ -520,34 +497,24 @@
                 <form @submit.prevent="submit()">
                     <div class="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto p-6 sm:grid-cols-2">
 
-                        {{-- Perusahaan --}}
+                        {{-- Perusahaan (readonly, dari company aktif) --}}
                         <div class="col-span-1">
                             <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                Perusahaan <span class="text-red-500">*</span>
+                                Perusahaan
                             </label>
-                            <select x-model="form.company_code" @change="onCompanyChange()"
-                                class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                                :class="errors.company_code && 'border-red-500'">
-                                <option value="">-- Pilih Perusahaan --</option>
-                                <template x-for="c in companies" :key="c">
-                                    <option :value="c" x-text="c"></option>
-                                </template>
-                            </select>
-                            <span class="text-xs text-red-500" x-show="errors.company_code"
-                                x-text="errors.company_code && errors.company_code[0]"></span>
+                            <input type="text" :value="company" readonly
+                                class="input input-sm w-full cursor-not-allowed bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                         </div>
 
-                        {{-- Group 2 induk (difilter di browser) --}}
+                        {{-- Group 2 induk --}}
                         <div class="col-span-1">
                             <label class="label mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
                                 Group 2 (Induk) <span class="text-red-500">*</span>
                             </label>
-                            <select x-model="form.g2_id" :disabled="!form.company_code"
-                                class="select select-sm w-full bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                            <select x-model="form.g2_id"
+                                class="select select-sm w-full bg-white dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 :class="errors.g2_id && 'border-red-500'">
-                                <option value=""
-                                    x-text="form.company_code ? '-- Pilih Group 2 --' : 'Pilih perusahaan dulu'">
-                                </option>
+                                <option value="">-- Pilih Group 2 --</option>
                                 <template x-for="grp in grouped" :key="grp.key">
                                     <optgroup :label="grp.label">
                                         <template x-for="o in grp.items" :key="o.id">

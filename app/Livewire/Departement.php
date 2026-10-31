@@ -2,67 +2,57 @@
 
 namespace App\Livewire;
 
+use App\Livewire\Concerns\ActiveCompany;
+use App\Livewire\Concerns\Otorisasi;
 use App\Livewire\Concerns\WithToast;
-use App\Models\Company;
 use App\Models\Departement as DepartementModel;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
-use Illuminate\Support\Str;
 
 class Departement extends Component
 {
-    use WithPagination, WithToast;
+    use WithPagination, WithToast, Otorisasi, ActiveCompany;
 
-    /* [B] STATE TABEL */
+    // Harus sama dengan key menu di Casbin / config/navigation.php
+    private const RESOURCE = 'departement';
+
+    /* STATE TABEL */
     public string $search        = '';
-    public string $filterStatus  = '';
-    public string $filterCompany = '';   // company code (TVIP/ASA), BUKAN id
     public int    $perPage       = 10;
     public string $sortField     = 'id';
     public string $sortDirection = 'desc';
 
-    /** Whitelist kolom sort */
-    private const SORTABLE = [
-        'id',
-        'code',
-        'name',
-        'alias',
-        'company_code',
-    ];
+    private const SORTABLE = ['id', 'code', 'name', 'alias'];
 
-    /* [C] STATE MODAL */
+    /* STATE MODAL */
+    #[Locked]
     public ?int $selectedId = null;
 
-    /* [D] STATE FORM */
-    public string $company_code = '';
-    public string $code         = '';
-    public string $name         = '';
-    public string $alias        = '';
+    /* STATE FORM (company_code dihapus: selalu dari session) */
+    public string $code  = '';
+    public string $name  = '';
+    public string $alias = '';
 
     protected array $messages = [
-        'company_code.required' => 'Perusahaan wajib dipilih.',
-        'company_code.exists'   => 'Perusahaan tidak valid.',
-        'code.required'         => 'Kode Departement wajib diisi.',
-        'code.unique'           => 'Kode Departement sudah digunakan pada perusahaan ini.',
-        'name.required'         => 'Nama Departement wajib diisi.',
-        'name.unique'           => 'Nama Departement sudah digunakan pada perusahaan ini.',
-        'alias.required'        => 'Alias wajib diisi.',
-        'alias.unique'          => 'Alias sudah digunakan pada perusahaan ini.',
+        'code.required'  => 'Kode Departement wajib diisi.',
+        'code.unique'    => 'Kode Departement sudah digunakan pada perusahaan ini.',
+        'name.required'  => 'Nama Departement wajib diisi.',
+        'name.unique'    => 'Nama Departement sudah digunakan pada perusahaan ini.',
+        'alias.required' => 'Alias wajib diisi.',
+        'alias.unique'   => 'Alias sudah digunakan pada perusahaan ini.',
     ];
 
-    /* [E] HOOK TABEL */
+    /* HOOK TABEL */
     public function updatingSearch(): void
     {
         $this->resetPage();
     }
 
-    public function updatingFilterCompany(): void
-    {
-        $this->resetPage();
-    }
     public function updatingPerPage(): void
     {
         $this->resetPage();
@@ -84,7 +74,7 @@ class Departement extends Component
 
     public function refreshData(): void
     {
-        $this->reset(['search', 'filterCompany']);
+        $this->reset(['search']);
         $this->sortField     = 'id';
         $this->sortDirection = 'desc';
         $this->resetPage();
@@ -92,50 +82,65 @@ class Departement extends Component
         $this->toast('Data Departement berhasil dimuat ulang.', 'info');
     }
 
-    /* [F] MODAL TAMBAH / EDIT */
+    /* TAMBAH / EDIT */
     public function create(): void
     {
+        $this->izinkan(self::RESOURCE, 'create');
+        $this->ensureSameCompany();
+
         $this->resetForm();
         $this->resetErrorBag();
     }
 
     public function edit(int $id): void
     {
+        $this->izinkan(self::RESOURCE, 'update');
+        $this->ensureSameCompany();
+
         $this->resetErrorBag();
+
+        // Global scope: ID milik company lain otomatis 404
         $departement = DepartementModel::findOrFail($id);
 
-        $this->selectedId   = $departement->id;
-        $this->company_code = $departement->company_code;
-        $this->code         = $departement->code ?? '';
-        $this->name         = $departement->name ?? '';
-        $this->alias        = Str::upper($departement->alias ?? '');
+        $this->selectedId = $departement->id;
+        $this->code       = $departement->code ?? '';
+        $this->name       = $departement->name ?? '';
+        $this->alias      = Str::upper($departement->alias ?? '');
     }
 
     public function save(): void
     {
+        $this->izinkan(self::RESOURCE, $this->selectedId ? 'update' : 'create');
+        $this->ensureSameCompany();
+
+        $company     = $this->tabCompany;
         $this->alias = Str::upper(trim($this->alias));
 
+        // Rule::unique langsung ke database (tidak lewat global scope),
+        // jadi where company_code tetap wajib
         $uniquePerCompany = fn(string $column) => Rule::unique('departments', $column)
-            ->where(fn($q) => $q->where('company_code', $this->company_code))
+            ->where(fn($q) => $q->where('company_code', $company))
             ->ignore($this->selectedId);
 
         try {
             $validated = $this->validate([
-                'company_code' => ['required', 'exists:companies,code'],
-                'code'         => ['required', 'string', 'max:20', $uniquePerCompany('code')],
-                'name'         => ['required', 'string', 'max:255', $uniquePerCompany('name')],
-                'alias'        => ['required', 'string', 'max:50', $uniquePerCompany('alias')]
+                'code'  => ['required', 'string', 'max:20', $uniquePerCompany('code')],
+                'name'  => ['required', 'string', 'max:255', $uniquePerCompany('name')],
+                'alias' => ['required', 'string', 'max:50', $uniquePerCompany('alias')],
             ]);
         } catch (ValidationException $e) {
             $this->toast('Data belum valid, periksa kembali isian form.', 'error');
             throw $e;
         }
 
+        // Company selalu dari session, bukan dari form
+        $validated['company_code'] = $company;
+
         try {
             if ($this->selectedId) {
                 $departement = DepartementModel::findOrFail($this->selectedId);
                 $departement->update($validated);
-                $this->toast("departement '{$departement->name}' berhasil diperbarui.");
+                $this->toast("Departement '{$departement->name}' berhasil diperbarui.");
             } else {
                 $departement = DepartementModel::create($validated);
                 $this->toast("Departement '{$departement->name}' berhasil ditambahkan.");
@@ -157,53 +162,51 @@ class Departement extends Component
         $this->resetForm();
     }
 
-
-
+    /* HAPUS */
     public function delete(int $id): void
     {
-        try {
-            $departement = DepartementModel::findOrFail($id);
+        $this->izinkan(self::RESOURCE, 'delete');
+        $this->ensureSameCompany();
 
-            $name = $departement->name;
+        try {
+            // Global scope: ID milik company lain otomatis 404
+            $departement = DepartementModel::findOrFail($id);
+            $name        = $departement->name;
 
             $departement->delete();
 
             $this->toast("Departement '{$name}' berhasil dihapus.");
         } catch (QueryException $e) {
             report($e);
-
-            $this->toast(
-                'Departement tidak bisa dihapus karena masih dipakai data lain.',
-                'error'
-            );
+            $this->toast('Departement tidak bisa dihapus karena masih dipakai data lain.', 'error');
         }
 
         $this->dispatch('delete-close');
     }
 
-
     private function resetForm(): void
     {
-        $this->selectedId   = null;
-        $this->company_code = '';
-        $this->code         = '';
-        $this->name         = '';
-        $this->alias        = '';
+        $this->selectedId = null;
+        $this->code       = '';
+        $this->name       = '';
+        $this->alias      = '';
     }
 
-    /* [H] RENDER */
+    /* RENDER */
     public function render()
     {
+        $this->izinkan(self::RESOURCE, 'read');
+        $this->ensureSameCompany();
+
+        // Tidak ada where company_code: sudah ditangani global scope di model
         $departements = DepartementModel::query()
-            ->with('company')
             ->search($this->search)
-            ->forCompany($this->filterCompany ?: null)
             ->orderBy($this->sortField, $this->sortDirection)
             ->paginate($this->perPage);
 
         return view('livewire.master.departement', [
-            'departements' => $departements,
-            'companies' => Company::orderBy('name')->get(),
+            'departements'  => $departements,
+            'activeCompany' => $this->tabCompany,
         ]);
     }
 }
