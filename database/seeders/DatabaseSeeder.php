@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             Tbag1Seeder::class,
             Tbag2Seeder::class,
             Tbag3Seeder::class,
+            CompanyUserSeeder::class,
         ]);
     }
 }

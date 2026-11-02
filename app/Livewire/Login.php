@@ -2,6 +2,7 @@
 
 namespace App\Livewire;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
@@ -25,7 +26,7 @@ class Login extends Component
     #[Validate('required|string', message: 'Password wajib diisi.')]
     public string $password = '';
 
-    public function login()
+    public function login_old()
     {
         $this->validate();
         $this->pastikanBelumTerblokir();
@@ -50,6 +51,51 @@ class Login extends Component
         return $this->redirectIntended(default: '/dashboard');
     }
 
+
+    public function login()
+    {
+        $this->validate();
+        $this->pastikanBelumTerblokir();
+
+        if (! Auth::attempt([
+            'username' => $this->usernameBersih(),
+            'password' => $this->password,
+        ])) {
+            RateLimiter::hit($this->kunciPembatas());
+            $this->reset('password');
+
+            throw ValidationException::withMessages([
+                'username' => 'Username atau password salah.',
+            ]);
+        }
+
+        $user = Auth::user();
+
+        // 1 query: semua company milik user
+        $companies = DB::table('company_user')
+            ->where('username', $user->username)
+            ->pluck('company_code');
+
+        if ($companies->isEmpty()) {
+            Auth::logout();
+            $this->reset('password');
+
+            throw ValidationException::withMessages([
+                'username' => 'Akun belum terdaftar di company manapun.',
+            ]);
+        }
+
+        // company terakhir dipakai, kalau tidak ada ambil yang pertama
+        $aktif = $companies->contains($user->last_company_code)
+            ? $user->last_company_code
+            : $companies->first();
+
+        RateLimiter::clear($this->kunciPembatas());
+        session()->regenerate();
+        session(['company_code' => $aktif]); // set SETELAH regenerate
+
+        return $this->redirectIntended(default: '/dashboard', navigate: true);
+    }
     /**
      * Hentikan proses jika percobaan login sudah melebihi batas.
      */

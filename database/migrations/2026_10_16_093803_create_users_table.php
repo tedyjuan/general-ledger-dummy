@@ -24,10 +24,9 @@ return new class extends Migration
             $table->timestamp('updated_at')->useCurrent()->useCurrentOnUpdate();
             $table->index('role_code');
 
-            $table->foreign('role_code')
-                ->references('code')
-                ->on('roles')
-                ->restrictOnDelete();
+            $table->foreign('role_code')->references('code')->on('roles')->restrictOnDelete();
+            $table->string('last_company_code', 20)->nullable();
+            $table->foreign('last_company_code')->references('code')->on('companies')->nullOnDelete();
         });
     }
 
