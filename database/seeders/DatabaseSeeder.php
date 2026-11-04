@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             Tbag2Seeder::class,
             Tbag3Seeder::class,
             CompanyUserSeeder::class,
+            FiscalPeriodSeeder::class,
         ]);
     }
 }

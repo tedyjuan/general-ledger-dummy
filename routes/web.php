@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LogoutController;
-use App\Livewire\Tes;
 use App\Livewire\Depo;
 use App\Livewire\Divisi;
 use App\Livewire\Segment;
@@ -11,6 +10,8 @@ use App\Livewire\TrialBalance;
 use App\Livewire\Login;
 use App\Livewire\Dashboard;
 use App\Livewire\AksesPerMenu;
+use App\Livewire\Users;
+use App\Livewire\FiscalPeriod;
 
 Route::livewire('/', Login::class)->name('login')->middleware('guest');
 Route::middleware('auth')->group(function () {
@@ -21,6 +22,7 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/segment', Segment::class)->middleware('permission:segment,read');
     Route::livewire('/departement', Departement::class)->middleware('permission:departement,read');
     Route::livewire('/trial-balance', TrialBalance::class)->middleware('permission:trial-balance,read');
-    Route::livewire('/tes', Tes::class)->middleware('permission:tes,read');
     Route::livewire('/akses-menu', AksesPerMenu::class)->middleware('permission:permissions,manage');
+    Route::livewire('/user', Users::class)->middleware('permission:user,read');
+    Route::livewire('/fiscal-period', FiscalPeriod::class)->middleware('permission:fiscal-period,read');
 });

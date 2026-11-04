@@ -26,7 +26,7 @@ return [
                 ['label' => 'Segment',      'href' => '/segment',       'match' => ['segment*'],       'key' => 'segment'],
                 ['label' => 'Departement',  'href' => '/departement',   'match' => ['departement*'],   'key' => 'departement'],
                 ['label' => 'Trial Balance', 'href' => '/trial-balance', 'match' => ['trial-balance*'], 'key' => 'trial-balance'],
-                ['label' => 'Tes',          'href' => '/tes',           'match' => ['tes*'],           'key' => 'tes'],
+                ['label' => 'Fiscal Period', 'href' => '/fiscal-period', 'match' => ['fiscal-period*'], 'key' => 'fiscal-period'],
             ],
         ],
 
@@ -59,7 +59,14 @@ return [
                     'href'    => '/akses-menu',
                     'match'   => ['akses-menu*'],
                     'key'     => 'permissions',
-                    'actions' => ['manage'],   // route memakai manage, bukan read
+                    'actions' => ['manage'],
+                ],
+                [
+                    'label'   => 'User Management',
+                    'href'    => '/user',
+                    'match'   => ['user*'],
+                    'key'     => 'user',
+                    'actions' => ['read'],
                 ],
             ],
         ],

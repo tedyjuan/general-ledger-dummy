@@ -20,6 +20,7 @@ class CheckPermission
     public function handle(Request $request, Closure $next, string $key, string $action = 'read'): Response
     {
         $user = $request->user();
+        // dd($user, $key, $action);
         $diizinkan = $user?->izin($key, $action) ?? false;
         abort_unless($diizinkan, 403, 'Anda tidak memiliki akses ke halaman ini. dd');
 

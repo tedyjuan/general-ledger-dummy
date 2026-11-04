@@ -11,6 +11,7 @@ use Maatwebsite\Excel\Concerns\WithUpserts;
 use Maatwebsite\Excel\Concerns\WithValidation;
 use Maatwebsite\Excel\Events\BeforeImport;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Validators\ValidationException;
 
 class CompanyuserImport implements
     ToModel,
