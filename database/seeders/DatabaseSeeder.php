@@ -42,6 +42,7 @@ class DatabaseSeeder extends Seeder
             CompanyUserSeeder::class,
             FiscalPeriodSeeder::class,
             JournalSourceSeeder::class,
+            CoaSeeder::class,
         ]);
     }
 }

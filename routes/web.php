@@ -12,7 +12,8 @@ use App\Livewire\Dashboard;
 use App\Livewire\AksesPerMenu;
 use App\Livewire\Users;
 use App\Livewire\FiscalPeriod;
-use App\Livewire\journalSource;
+use App\Livewire\JournalSource;
+use App\Livewire\Coa;
 
 Route::livewire('/', Login::class)->name('login')->middleware('guest');
 Route::middleware('auth')->group(function () {
@@ -26,5 +27,6 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/akses-menu', AksesPerMenu::class)->middleware('permission:permissions,manage');
     Route::livewire('/user', Users::class)->middleware('permission:user,read');
     Route::livewire('/fiscal-period', FiscalPeriod::class)->middleware('permission:fiscal-period,read');
-    Route::livewire('/journal-sources', journalSource::class)->middleware('permission:journal-sources,read');
+    Route::livewire('/journal-sources', JournalSource::class)->middleware('permission:journal-sources,read');
+    Route::livewire('/coa', Coa::class)->middleware('permission:coa,read');
 });

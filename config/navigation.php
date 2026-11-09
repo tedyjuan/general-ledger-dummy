@@ -28,6 +28,7 @@ return [
                 ['label' => 'Trial Balance', 'href' => '/trial-balance', 'match' => ['trial-balance*'], 'key' => 'trial-balance'],
                 ['label' => 'Fiscal Period', 'href' => '/fiscal-period', 'match' => ['fiscal-period*'], 'key' => 'fiscal-period'],
                 ['label' => 'Journal Sources', 'href' => '/journal-sources', 'match' => ['journal-sources*'], 'key' => 'journal-sources'],
+                ['label' => 'Chart of Account', 'href' => '/coa', 'match' => ['coa*'], 'key' => 'coa'],
             ],
         ],
 
