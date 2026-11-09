@@ -2,29 +2,37 @@
 
 namespace App\Livewire;
 
-use App\Models\User;
-use App\Models\Role;
 use App\Livewire\Concerns\Otorisasi;
+use App\Models\Role;
+use App\Models\User;
 use App\Support\Navigation;
+use Illuminate\Support\Facades\DB;
 use Lauthz\Facades\Enforcer;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
-use Illuminate\Support\Facades\DB;
 
-
-#[Layout('components.layouts.app')] // sesuaikan dengan layout utama Anda
+#[Layout('components.layouts.app')]
 #[Title('Akses per Menu')]
 class AksesPerMenu extends Component
 {
     use Otorisasi;
+    private const AKSI_STANDAR = [
+        'read',
+        'create',
+        'update',
+        'delete',
+    ];
 
-    /** Key menu yang sedang diatur, mis. "depo" */
+    private const ROLE_DEFAULT = 'ICTT';
+
     public string $menu = '';
 
-    /** $matrix[indeksPeran][aksi] = true/false */
+    /**
+     * Struktur:
+     * matrix[role_code][action] = true/false
+     */
     public array $matrix = [];
-    private const AKSI_STANDAR = ['read', 'create', 'update', 'delete'];
 
     public bool $tersimpan = false;
 
@@ -32,34 +40,108 @@ class AksesPerMenu extends Component
     {
         $this->izinkan('permissions', 'manage');
 
-        $this->menu = (string) array_key_first(Navigation::permissionables());
+        // Generate policy default ICTT untuk menu baru
+        $this->generatePolicyIctt();
+
+        $daftarMenu = Navigation::permissionables();
+
+        $this->menu = (string) array_key_first($daftarMenu);
+
         $this->muat();
     }
 
+    /**
+     * Ketika menu diganti
+     */
     public function updatedMenu(): void
     {
-        abort_unless(array_key_exists($this->menu, Navigation::permissionables()), 422);
+        abort_unless(
+            array_key_exists($this->menu, Navigation::permissionables()),
+            422
+        );
 
         $this->tersimpan = false;
+
         $this->muat();
     }
 
+    /**
+     * Mengambil daftar action menu.
+     * Action standar + action tambahan.
+     */
+    private function aksiMenu(string $menu): array
+    {
+        $extra = Navigation::permissionables()[$menu]['actions'] ?? [];
+
+        return array_values(array_unique(array_merge(
+            self::AKSI_STANDAR,
+            $extra
+        )));
+    }
+
+    /**
+     * Generate policy default untuk ICTT.
+     *
+     * Jika belum ada policy pada menu:
+     * insert read, create, update, delete.
+     *
+     * Jika sudah ada:
+     * tidak melakukan perubahan.
+     */
+    private function generatePolicyIctt(): void
+    {
+        $dibuat = 0;
+
+        DB::transaction(function () use (&$dibuat) {
+
+            foreach (array_keys(Navigation::permissionables()) as $menu) {
+
+                $sudahAda = Enforcer::getFilteredPolicy(
+                    0,
+                    self::ROLE_DEFAULT,
+                    $menu
+                );
+
+                if (! empty($sudahAda)) {
+                    continue;
+                }
+
+                foreach (self::AKSI_STANDAR as $aksi) {
+
+                    if (Enforcer::addPolicy(
+                        self::ROLE_DEFAULT,
+                        $menu,
+                        $aksi
+                    )) {
+                        $dibuat++;
+                    }
+                }
+            }
+        });
+
+        if ($dibuat > 0) {
+            User::resetCacheIzin();
+        }
+    }
+
+    /**
+     * Load policy berdasarkan kode role.
+     */
     protected function muat(): void
     {
-        $aksiMenu = Navigation::permissionables()[$this->menu]['actions'] ?? [];
+        $aksiMenu = $this->aksiMenu($this->menu);
 
         $perans = Role::query()
             ->orderBy('name')
-            ->pluck('code')
-            ->toArray();
+            ->pluck('code');
 
         $this->matrix = [];
 
+        foreach ($perans as $peran) {
 
-
-        foreach ($perans as $i => $peran) {
             foreach ($aksiMenu as $aksi) {
-                $this->matrix[$i][$aksi] = Enforcer::hasPolicy(
+
+                $this->matrix[$peran][$aksi] = Enforcer::hasPolicy(
                     $peran,
                     $this->menu,
                     $aksi
@@ -68,68 +150,93 @@ class AksesPerMenu extends Component
         }
     }
 
-
-
-
-
+    /**
+     * Simpan perubahan permission.
+     */
     public function simpan(): void
     {
         $this->izinkan('permissions', 'manage');
 
-        $daftarMenu = Navigation::permissionables();
+        abort_unless(
+            array_key_exists($this->menu, Navigation::permissionables()),
+            422
+        );
 
-        abort_unless(isset($daftarMenu[$this->menu]), 422);
-
-        // Pastikan 4 aksi standar selalu diproses, ditambah aksi khusus menu (jika ada)
-        $aksiMenu = array_values(array_unique(array_merge(
-            self::AKSI_STANDAR,
-            $daftarMenu[$this->menu]['actions'] ?? []
-        )));
+        $aksiMenu = $this->aksiMenu($this->menu);
 
         $perans = Role::query()
             ->orderBy('name')
-            ->get(['code']);
+            ->pluck('code');
 
         DB::transaction(function () use ($perans, $aksiMenu) {
-            foreach ($perans as $i => $role) {
-                $peran = $role->code;
 
-                // Prioritaskan key berdasarkan kode role, fallback ke index
-                $baris = $this->matrix[$peran] ?? $this->matrix[$i] ?? [];
+            foreach ($perans as $peran) {
+
+                $baris = $this->matrix[$peran] ?? [];
 
                 $mau = [];
+
+                // Ambil nilai masing-masing checkbox
                 foreach ($aksiMenu as $aksi) {
+
                     $mau[$aksi] = (bool) ($baris[$aksi] ?? false);
                 }
 
-                // Jika punya aksi apa pun, otomatis boleh read
-                if (in_array(true, $mau, true)) {
+                // Jika create, update, atau delete aktif,
+                // maka read otomatis aktif.
+                if (
+                    ($mau['create'] ?? false) ||
+                    ($mau['update'] ?? false) ||
+                    ($mau['delete'] ?? false)
+                ) {
                     $mau['read'] = true;
                 }
 
-                // Role ICTT wajib punya semua akses di menu permissions
-                if ($peran === 'ICTT' && $this->menu === 'permissions') {
+                // ICTT wajib memiliki seluruh akses
+                // pada menu permissions.
+                if (
+                    $peran === self::ROLE_DEFAULT &&
+                    $this->menu === 'permissions'
+                ) {
                     $mau = array_fill_keys($aksiMenu, true);
                 }
 
+                // Sinkronisasi policy
                 foreach ($aksiMenu as $aksi) {
-                    $punya = Enforcer::hasPolicy($peran, $this->menu, $aksi);
 
+                    $punya = Enforcer::hasPolicy(
+                        $peran,
+                        $this->menu,
+                        $aksi
+                    );
+
+                    // Insert policy jika dicentang
                     if ($mau[$aksi] && ! $punya) {
-                        // Belum ada di Casbin -> insert
-                        Enforcer::addPolicy($peran, $this->menu, $aksi);
-                    } elseif (! $mau[$aksi] && $punya) {
-                        // Sudah ada tapi dimatikan -> hapus
-                        Enforcer::removePolicy($peran, $this->menu, $aksi);
+
+                        Enforcer::addPolicy(
+                            $peran,
+                            $this->menu,
+                            $aksi
+                        );
                     }
-                    // Sudah ada dan tetap aktif -> tidak perlu diubah
+
+                    // Hapus policy jika tidak dicentang
+                    elseif (! $mau[$aksi] && $punya) {
+
+                        Enforcer::removePolicy(
+                            $peran,
+                            $this->menu,
+                            $aksi
+                        );
+                    }
                 }
             }
         });
 
-        // Policy sudah tersimpan, buat cache izin semua role usang
+        // Reset cache permission
         User::resetCacheIzin();
 
+        // Refresh checkbox dari database
         $this->muat();
 
         $this->tersimpan = true;
@@ -137,16 +244,14 @@ class AksesPerMenu extends Component
 
     public function render()
     {
-        $daftarMenu = Navigation::permissionables();
-
-        $perans = Role::query()
-            ->orderBy('name')
-            ->get(['code', 'name']);
-
         return view('livewire.akses-per-menu', [
-            'daftarMenu' => $daftarMenu,
-            'aksiMenu'   => $daftarMenu[$this->menu]['actions'] ?? [],
-            'perans'     => $perans,
+            'daftarMenu' => Navigation::permissionables(),
+
+            'aksiMenu' => $this->aksiMenu($this->menu),
+
+            'perans' => Role::query()
+                ->orderBy('name')
+                ->get(['code', 'name']),
         ]);
     }
 }

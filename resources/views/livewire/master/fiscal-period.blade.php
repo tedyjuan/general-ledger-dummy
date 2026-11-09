@@ -276,8 +276,36 @@
             </div>
         </div>
 
+        {{-- start  --}}
+
         <div class="overflow-x-auto" wire:loading.class="opacity-60"
-            wire:target="year, depo, statusFilter, perPage, sortBy, gotoPage, nextPage, previousPage, filterStatus">
+            wire:target="year, depo, statusFilter, perPage, sortBy, gotoPage, nextPage, previousPage, filterStatus"
+            wire:key="tabel-periode-{{ $periods->currentPage() }}-{{ $perPage }}" x-data="{
+                pageIds: @js($periods->pluck('id')->map(fn($id) => (string) $id)->values()->all()),
+            
+                get selectedIds() {
+                    return ($wire.selected ?? []).map(String)
+                },
+                get jumlahTerpilih() {
+                    return this.pageIds.filter(id => this.selectedIds.includes(id)).length
+                },
+                get semuaDipilih() {
+                    return this.pageIds.length > 0 && this.jumlahTerpilih === this.pageIds.length
+                },
+                get sebagianDipilih() {
+                    return this.jumlahTerpilih > 0 && !this.semuaDipilih
+                },
+                toggleSemua() {
+                    if (this.semuaDipilih) {
+                        // lepas semua baris di halaman ini
+                        $wire.selected = this.selectedIds.filter(id => !this.pageIds.includes(id))
+                    } else {
+                        // pilih semua baris di halaman ini (pilihan halaman lain tetap)
+                        $wire.selected = [...new Set([...this.selectedIds, ...this.pageIds])]
+                    }
+                },
+            }">
+
             <table class="table table-sm">
                 <thead class="bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-300">
                     {{-- Judul kolom --}}
@@ -285,8 +313,8 @@
                         @if ($bisaUbah)
                             <th class="w-10">
                                 <input type="checkbox" class="checkbox checkbox-success checkbox-sm"
-                                    aria-label="Pilih semua di halaman ini" wire:click="togglePage"
-                                    @checked($semuaDipilih)>
+                                    aria-label="Pilih semua di halaman ini" x-on:change="toggleSemua()"
+                                    x-bind:checked="semuaDipilih" x-effect="$el.indeterminate = sebagianDipilih">
                             </th>
                         @endif
                         <th class="w-12 text-center">No.</th>
@@ -320,7 +348,9 @@
                             class="transition-colors hover:bg-emerald-50/40 has-[:checked]:bg-emerald-50/60 dark:hover:bg-slate-800/60 dark:has-[:checked]:bg-emerald-950/20">
                             @if ($bisaUbah)
                                 <td>
-                                    <input type="checkbox" wire:model.live="selected" value="{{ $p->id }}"
+                                    {{-- deferred (tanpa .live): $wire.selected tetap langsung berubah di klien,
+                                 sehingga header bereaksi seketika tanpa request per klik --}}
+                                    <input type="checkbox" wire:model="selected" value="{{ $p->id }}"
                                         class="checkbox checkbox-success checkbox-sm"
                                         aria-label="Pilih periode {{ $p->periode_label }} depo {{ $p->depo_code }}">
                                 </td>
@@ -364,18 +394,21 @@
                             <td>
                                 @switch($p->status_normal)
                                     @case('open')
-                                        <span class="badge badge-soft badge-success badge-sm gap-1"><span
-                                                class="icon-[tabler--lock-open] size-3.5"></span> Open</span>
+                                        <span class="badge badge-soft badge-success badge-sm gap-1">
+                                            <span class="icon-[tabler--lock-open] size-3.5"></span> Open
+                                        </span>
                                     @break
 
                                     @case('closed')
-                                        <span class="badge badge-soft badge-error badge-sm gap-1"><span
-                                                class="icon-[tabler--lock] size-3.5"></span> Closed</span>
+                                        <span class="badge badge-soft badge-error badge-sm gap-1">
+                                            <span class="icon-[tabler--lock] size-3.5"></span> Closed
+                                        </span>
                                     @break
 
                                     @default
-                                        <span class="badge badge-soft badge-neutral badge-sm gap-1"><span
-                                                class="icon-[tabler--help-circle] size-3.5"></span> Belum ditentukan</span>
+                                        <span class="badge badge-soft badge-neutral badge-sm gap-1">
+                                            <span class="icon-[tabler--help-circle] size-3.5"></span> Belum ditentukan
+                                        </span>
                                 @endswitch
                             </td>
 
@@ -405,8 +438,9 @@
                                             <span
                                                 class="icon-[tabler--calendar-off] size-7 text-slate-400 dark:text-slate-500"></span>
                                         </div>
-                                        <p class="text-base font-semibold text-slate-700 dark:text-slate-300">Tidak ada
-                                            periode fiskal ditemukan</p>
+                                        <p class="text-base font-semibold text-slate-700 dark:text-slate-300">
+                                            Tidak ada periode fiskal ditemukan
+                                        </p>
                                         <p class="text-xs text-slate-400">
                                             {{ $adaFilter ? 'Coba ubah filter tahun, depo, atau status.' : 'Periode dibuat otomatis setiap akhir tahun.' }}
                                         </p>
@@ -502,159 +536,166 @@
                     </nav>
                 @endif
             </div>
-        </div>
+            {{-- end --}}
 
-        {{-- MODAL UBAH STATUS (SATU PERIODE) --}}
-        @if ($bisaUbah && $showEdit)
-            <div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm"
-                wire:click.self="closeModal" role="dialog" aria-modal="true" aria-labelledby="judul-edit">
-                <div
-                    class="relative my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+            {{-- MODAL UBAH STATUS (SATU PERIODE) --}}
+            @if ($bisaUbah && $showEdit)
+                <div class="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm"
+                    wire:click.self="closeModal" role="dialog" aria-modal="true" aria-labelledby="judul-edit">
                     <div
-                        class="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-                        <div class="flex items-center gap-2.5">
-                            <span
-                                class="icon-[tabler--calendar-event] size-6 text-emerald-600 dark:text-emerald-400"></span>
-                            <h3 id="judul-edit" class="text-lg font-bold text-slate-800 dark:text-white">Ubah Status
-                                Periode</h3>
-                        </div>
-                        <button type="button" wire:click="closeModal" aria-label="Tutup"
-                            class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
-                            <span class="icon-[tabler--x] size-5"></span>
-                        </button>
-                    </div>
-
-                    <form wire:submit="save">
-                        <div class="space-y-5 p-6">
-                            <dl
-                                class="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
-                                <div class="col-span-2">
-                                    <dt class="text-xs text-slate-500 dark:text-slate-400">Depo</dt>
-                                    <dd class="font-semibold text-slate-800 dark:text-white">{{ $info['depo'] ?? '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-slate-500 dark:text-slate-400">Tahun</dt>
-                                    <dd class="font-semibold text-slate-800 dark:text-white">{{ $info['tahun'] ?? '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-slate-500 dark:text-slate-400">Periode</dt>
-                                    <dd class="font-semibold text-slate-800 dark:text-white">{{ $info['periode'] ?? '-' }}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-slate-500 dark:text-slate-400">Tanggal mulai</dt>
-                                    <dd class="text-slate-700 dark:text-slate-200">{{ $info['mulai'] ?? '-' }}</dd>
-                                </div>
-                                <div>
-                                    <dt class="text-xs text-slate-500 dark:text-slate-400">Tanggal selesai</dt>
-                                    <dd class="text-slate-700 dark:text-slate-200">{{ $info['selesai'] ?? '-' }}</dd>
-                                </div>
-                            </dl>
-
-                            <fieldset>
-                                <legend class="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                                    Status periode <span class="text-red-500">*</span>
-                                    @if (($info['awal'] ?? '') === 'undefined')
-                                        <span class="font-normal text-slate-400">(saat ini belum ditentukan)</span>
-                                    @endif
-                                </legend>
-
-                                <div class="grid gap-3 sm:grid-cols-2">
-                                    <label
-                                        class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition-colors hover:border-emerald-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-slate-700 dark:has-[:checked]:bg-emerald-950/30">
-                                        <input type="radio" wire:model="status" value="open"
-                                            class="radio radio-success radio-sm mt-0.5">
-                                        <span>
-                                            <span
-                                                class="flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-white">
-                                                <span class="icon-[tabler--lock-open] size-4 text-emerald-600"></span> Open
-                                            </span>
-                                            <span class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Transaksi
-                                                pada periode ini dapat diposting.</span>
-                                        </span>
-                                    </label>
-
-                                    <label
-                                        class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition-colors hover:border-red-300 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-slate-700 dark:has-[:checked]:bg-red-950/20">
-                                        <input type="radio" wire:model="status" value="closed"
-                                            class="radio radio-error radio-sm mt-0.5">
-                                        <span>
-                                            <span
-                                                class="flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-white">
-                                                <span class="icon-[tabler--lock] size-4 text-red-600"></span> Closed
-                                            </span>
-                                            <span class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Periode
-                                                dikunci, tidak ada transaksi baru.</span>
-                                        </span>
-                                    </label>
-                                </div>
-
-                                @error('status')
-                                    <span class="mt-2 block text-xs text-red-500">{{ $message }}</span>
-                                @enderror
-                            </fieldset>
-                        </div>
-
+                        class="relative my-8 w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
                         <div
-                            class="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
+                            class="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+                            <div class="flex items-center gap-2.5">
+                                <span
+                                    class="icon-[tabler--calendar-event] size-6 text-emerald-600 dark:text-emerald-400"></span>
+                                <h3 id="judul-edit" class="text-lg font-bold text-slate-800 dark:text-white">Ubah Status
+                                    Periode</h3>
+                            </div>
+                            <button type="button" wire:click="closeModal" aria-label="Tutup"
+                                class="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200">
+                                <span class="icon-[tabler--x] size-5"></span>
+                            </button>
+                        </div>
+
+                        <form wire:submit="save">
+                            <div class="space-y-5 p-6">
+                                <dl
+                                    class="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-700 dark:bg-slate-800/50">
+                                    <div class="col-span-2">
+                                        <dt class="text-xs text-slate-500 dark:text-slate-400">Depo</dt>
+                                        <dd class="font-semibold text-slate-800 dark:text-white">
+                                            {{ $info['depo'] ?? '-' }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs text-slate-500 dark:text-slate-400">Tahun</dt>
+                                        <dd class="font-semibold text-slate-800 dark:text-white">
+                                            {{ $info['tahun'] ?? '-' }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs text-slate-500 dark:text-slate-400">Periode</dt>
+                                        <dd class="font-semibold text-slate-800 dark:text-white">
+                                            {{ $info['periode'] ?? '-' }}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs text-slate-500 dark:text-slate-400">Tanggal mulai</dt>
+                                        <dd class="text-slate-700 dark:text-slate-200">{{ $info['mulai'] ?? '-' }}</dd>
+                                    </div>
+                                    <div>
+                                        <dt class="text-xs text-slate-500 dark:text-slate-400">Tanggal selesai</dt>
+                                        <dd class="text-slate-700 dark:text-slate-200">{{ $info['selesai'] ?? '-' }}</dd>
+                                    </div>
+                                </dl>
+
+                                <fieldset>
+                                    <legend class="mb-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                        Status periode <span class="text-red-500">*</span>
+                                        @if (($info['awal'] ?? '') === 'undefined')
+                                            <span class="font-normal text-slate-400">(saat ini belum ditentukan)</span>
+                                        @endif
+                                    </legend>
+
+                                    <div class="grid gap-3 sm:grid-cols-2">
+                                        <label
+                                            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition-colors hover:border-emerald-300 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50 dark:border-slate-700 dark:has-[:checked]:bg-emerald-950/30">
+                                            <input type="radio" wire:model="status" value="open"
+                                                class="radio radio-success radio-sm mt-0.5">
+                                            <span>
+                                                <span
+                                                    class="flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-white">
+                                                    <span class="icon-[tabler--lock-open] size-4 text-emerald-600"></span>
+                                                    Open
+                                                </span>
+                                                <span
+                                                    class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Transaksi
+                                                    pada periode ini dapat diposting.</span>
+                                            </span>
+                                        </label>
+
+                                        <label
+                                            class="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition-colors hover:border-red-300 has-[:checked]:border-red-400 has-[:checked]:bg-red-50 dark:border-slate-700 dark:has-[:checked]:bg-red-950/20">
+                                            <input type="radio" wire:model="status" value="closed"
+                                                class="radio radio-error radio-sm mt-0.5">
+                                            <span>
+                                                <span
+                                                    class="flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-white">
+                                                    <span class="icon-[tabler--lock] size-4 text-red-600"></span> Closed
+                                                </span>
+                                                <span
+                                                    class="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Periode
+                                                    dikunci, tidak ada transaksi baru.</span>
+                                            </span>
+                                        </label>
+                                    </div>
+
+                                    @error('status')
+                                        <span class="mt-2 block text-xs text-red-500">{{ $message }}</span>
+                                    @enderror
+                                </fieldset>
+                            </div>
+
+                            <div
+                                class="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900/50">
+                                <button type="button" wire:click="closeModal"
+                                    class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">Batal</button>
+                                <button type="submit" class="btn btn-sm btn-success flex items-center gap-1.5"
+                                    wire:loading.attr="disabled" wire:target="save">
+                                    <span wire:loading.remove wire:target="save" class="flex items-center gap-1.5">
+                                        <span class="icon-[tabler--device-floppy] size-4"></span> Simpan status
+                                    </span>
+                                    <span wire:loading wire:target="save" class="flex items-center gap-1.5">
+                                        <span class="icon-[tabler--loader-2] size-4 animate-spin"></span> Menyimpan...
+                                    </span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            @endif
+
+            {{-- MODAL KONFIRMASI MASSAL --}}
+            @if ($bisaUbah && $showBulk)
+                @php $buka = $bulkStatus === 'open'; @endphp
+                <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+                    wire:click.self="closeModal" role="alertdialog" aria-modal="true" aria-labelledby="judul-bulk">
+                    <div
+                        class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+                        <div class="flex items-start gap-4">
+                            <div
+                                class="flex size-12 shrink-0 items-center justify-center rounded-full {{ $buka ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400' }}">
+                                <span
+                                    class="{{ $buka ? 'icon-[tabler--lock-open]' : 'icon-[tabler--lock]' }} size-6"></span>
+                            </div>
+                            <div>
+                                <h3 id="judul-bulk" class="text-lg font-bold text-slate-800 dark:text-white">Ubah status
+                                    massal</h3>
+                                <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+                                    Ubah status
+                                    <span class="font-semibold text-slate-800 dark:text-white">{{ count($selected) }}
+                                        periode</span>
+                                    menjadi
+                                    <span
+                                        class="font-semibold text-slate-800 dark:text-white">{{ $buka ? 'Open' : 'Closed' }}</span>?
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-end gap-2">
                             <button type="button" wire:click="closeModal"
                                 class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">Batal</button>
-                            <button type="submit" class="btn btn-sm btn-success flex items-center gap-1.5"
-                                wire:loading.attr="disabled" wire:target="save">
-                                <span wire:loading.remove wire:target="save" class="flex items-center gap-1.5">
-                                    <span class="icon-[tabler--device-floppy] size-4"></span> Simpan status
-                                </span>
-                                <span wire:loading wire:target="save" class="flex items-center gap-1.5">
-                                    <span class="icon-[tabler--loader-2] size-4 animate-spin"></span> Menyimpan...
+                            <button type="button" wire:click="bulkUpdate" wire:loading.attr="disabled"
+                                wire:target="bulkUpdate"
+                                class="btn btn-sm flex items-center gap-1.5 {{ $buka ? 'btn-success' : 'btn-error' }}">
+                                <span wire:loading.remove wire:target="bulkUpdate">Ya, ubah</span>
+                                <span wire:loading wire:target="bulkUpdate" class="flex items-center gap-1.5">
+                                    <span class="icon-[tabler--loader-2] size-4 animate-spin"></span> Memproses...
                                 </span>
                             </button>
                         </div>
-                    </form>
-                </div>
-            </div>
-        @endif
-
-        {{-- MODAL KONFIRMASI MASSAL --}}
-        @if ($bisaUbah && $showBulk)
-            @php $buka = $bulkStatus === 'open'; @endphp
-            <div class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
-                wire:click.self="closeModal" role="alertdialog" aria-modal="true" aria-labelledby="judul-bulk">
-                <div
-                    class="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-                    <div class="flex items-start gap-4">
-                        <div
-                            class="flex size-12 shrink-0 items-center justify-center rounded-full {{ $buka ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400' : 'bg-red-100 text-red-600 dark:bg-red-950/50 dark:text-red-400' }}">
-                            <span class="{{ $buka ? 'icon-[tabler--lock-open]' : 'icon-[tabler--lock]' }} size-6"></span>
-                        </div>
-                        <div>
-                            <h3 id="judul-bulk" class="text-lg font-bold text-slate-800 dark:text-white">Ubah status
-                                massal</h3>
-                            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
-                                Ubah status
-                                <span class="font-semibold text-slate-800 dark:text-white">{{ count($selected) }}
-                                    periode</span>
-                                menjadi
-                                <span
-                                    class="font-semibold text-slate-800 dark:text-white">{{ $buka ? 'Open' : 'Closed' }}</span>?
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex items-center justify-end gap-2">
-                        <button type="button" wire:click="closeModal"
-                            class="btn btn-sm btn-outline text-slate-600 dark:text-slate-300">Batal</button>
-                        <button type="button" wire:click="bulkUpdate" wire:loading.attr="disabled"
-                            wire:target="bulkUpdate"
-                            class="btn btn-sm flex items-center gap-1.5 {{ $buka ? 'btn-success' : 'btn-error' }}">
-                            <span wire:loading.remove wire:target="bulkUpdate">Ya, ubah</span>
-                            <span wire:loading wire:target="bulkUpdate" class="flex items-center gap-1.5">
-                                <span class="icon-[tabler--loader-2] size-4 animate-spin"></span> Memproses...
-                            </span>
-                        </button>
                     </div>
                 </div>
-            </div>
-        @endif
-    </div>
+            @endif
+        </div>

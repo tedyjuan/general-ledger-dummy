@@ -53,10 +53,11 @@ class User extends Authenticatable
      */
     public function izin(string $key, string $aksi): bool
     {
+        // dd($key, $aksi, $this->role_code);
+
         if (blank($this->role_code)) {
             return false;
         }
-
         return isset($this->daftarIzin()["{$key}:{$aksi}"]);
     }
 
@@ -64,28 +65,61 @@ class User extends Authenticatable
      * Daftar izin milik role user ini, bentuk: ['depo:read' => true, ...].
      * Dibangun sekali dari Casbin, lalu disimpan di cache.
      */
+
     protected function daftarIzin(): array
     {
-        return $this->izinCache ??= Cache::remember(
+        // Jika izin sudah tersedia di property, gunakan langsung.
+        if ($this->izinCache !== null) {
+            return $this->izinCache;
+        }
+
+        // Ambil izin dari cache berdasarkan kode role.
+        $izin = Cache::remember(
             self::kunciCacheIzin($this->role_code),
             now()->addHours(6),
             function (): array {
+
                 $set = [];
 
-                // Ikut memperhitungkan inheritance role (g)
+                // Mengambil seluruh permission termasuk inheritance role Casbin.
                 foreach (Enforcer::getImplicitPermissionsForUser($this->role_code) as $p) {
-                    // format policy: [subjek, objek, aksi]
+
+                    // Format policy: [subjek, objek, aksi]
+                    // Contoh: ['ACCOUNTING', 'user', 'read']
                     $set["{$p[1]}:{$p[2]}"] = true;
                 }
 
                 return $set;
             }
         );
+
+        // Simpan hasil cache ke property agar bisa digunakan kembali.
+        $this->izinCache = $izin;
+        // baca izin user 
+        // dd($this->izinCache);
+
+        return $this->izinCache;
     }
+
 
     protected static function kunciCacheIzin(string $roleCode): string
     {
-        return 'izin:v' . Cache::get('izin:versi', 1) . ':role:' . $roleCode;
+        /**
+         * Membuat key cache permission berdasarkan versi cache dan kode role.
+         *
+         * Format key:
+         * izin:v{versi}:role:{kode_role}
+         *
+         * Contoh:
+         * izin:v1:role:ICTT
+         * izin:v1:role:ACCOUNTING
+         */
+        // Mengambil nomor versi cache.
+        // Jika belum tersedia, gunakan versi default 1.
+        $versi = Cache::get('izin:versi', 1);
+
+        // Membuat key cache berdasarkan versi dan kode role.
+        return 'izin:v' . $versi . ':role:' . $roleCode;
     }
 
     /**

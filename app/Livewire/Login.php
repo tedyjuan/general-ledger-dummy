@@ -26,30 +26,7 @@ class Login extends Component
     #[Validate('required|string', message: 'Password wajib diisi.')]
     public string $password = '';
 
-    public function login_old()
-    {
-        $this->validate();
-        $this->pastikanBelumTerblokir();
 
-        $kredensial = [
-            'username' => $this->usernameBersih(),
-            'password' => $this->password,
-        ];
-
-        if (! Auth::attempt($kredensial)) {
-            RateLimiter::hit($this->kunciPembatas());
-            $this->reset('password');
-
-            throw ValidationException::withMessages([
-                'username' => 'Username atau password salah.',
-            ]);
-        }
-
-        RateLimiter::clear($this->kunciPembatas());
-        session()->regenerate();
-
-        return $this->redirectIntended(default: '/dashboard');
-    }
 
 
     public function login()
