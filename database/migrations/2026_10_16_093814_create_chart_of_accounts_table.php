@@ -16,7 +16,7 @@ return new class extends Migration
             $table->integer('account_number');               // header 1001 / ledger 100101 / subledger 10010101
             $table->integer('header_code')->nullable();      // -> account_number milik header
             $table->integer('reference_code')->nullable();   // -> account_number milik ledger (khusus subledger)
-
+ 
             $table->string('name');
             $table->string('description');
 
