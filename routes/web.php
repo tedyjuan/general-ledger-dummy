@@ -14,6 +14,7 @@ use App\Livewire\Users;
 use App\Livewire\FiscalPeriod;
 use App\Livewire\JournalSource;
 use App\Livewire\Coa;
+use App\Livewire\CostCenter;
 
 Route::livewire('/', Login::class)->name('login')->middleware('guest');
 Route::middleware('auth')->group(function () {
@@ -29,4 +30,5 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/fiscal-period', FiscalPeriod::class)->middleware('permission:fiscal-period,read');
     Route::livewire('/journal-sources', JournalSource::class)->middleware('permission:journal-sources,read');
     Route::livewire('/coa', Coa::class)->middleware('permission:coa,read');
+    Route::livewire('/cost-center', CostCenter::class)->middleware('permission:cost-center,read')->name('cost-center.index');
 });

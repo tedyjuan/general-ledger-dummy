@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('cost_center', 30)->unique();
             $table->string('name', 255);
             $table->string('company_code', 20);
-            $table->string('depo_code', 10);
+            $table->string('area_code', 10);
             $table->string('department_code', 10);
             $table->string('division_code', 10);
             $table->string('segment_code', 10);
@@ -27,8 +27,8 @@ return new class extends Migration
 
             // Index untuk filtering
             $table->index(
-                ['company_code', 'depo_code'],
-                'cc_company_depo_idx'
+                ['company_code', 'area_code'],
+                'cc_company_area_code_idx'
             );
 
             $table->index(
@@ -47,8 +47,8 @@ return new class extends Migration
             $table->foreign('department_code', 'fk_department_cc')
                 ->references('code')->on('departments')
                 ->cascadeOnUpdate()->restrictOnDelete();
-            $table->foreign('depo_code', 'fk_depo_cc')
-                ->references('code')->on('depos')
+            $table->foreign('area_code', 'fk_depo_cc')
+                ->references('area_code')->on('depos')
                 ->cascadeOnUpdate()->restrictOnDelete();
         });
     }
