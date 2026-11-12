@@ -26,15 +26,12 @@ return new class extends Migration
             $table->timestamps();
 
             // Index untuk filtering
-            $table->index(
-                ['company_code', 'area_code'],
-                'cc_company_area_code_idx'
-            );
+            $table->index(['company_code', 'area_code'], 'cc_company_area_code_idx');
+            $table->index(['company_code', 'department_code'], 'cc_company_department_idx');
+            // pendukung FK komposit dari product_mapped
+            $table->unique(['company_code', 'cost_center'], 'cc_company_cost_center_key');
 
-            $table->index(
-                ['company_code', 'department_code'],
-                'cc_company_department_idx'
-            );
+
             $table->foreign('company_code', 'fk_company_cc')
                 ->references('code')->on('companies')
                 ->cascadeOnUpdate()->restrictOnDelete();

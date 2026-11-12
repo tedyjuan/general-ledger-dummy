@@ -13,10 +13,9 @@ return new class extends Migration
             $table->increments('id');
 
             $table->string('company_code', 20);
-            $table->integer('account_number');               // header 1001 / ledger 100101 / subledger 10010101
-            $table->integer('header_code')->nullable();      // -> account_number milik header
-            $table->integer('reference_code')->nullable();   // -> account_number milik ledger (khusus subledger)
- 
+            $table->string('account_number', 50);              // header 1001 / ledger 100101 / subledger 10010101
+            $table->string('header_code', 50)->nullable();     // -> account_number milik header
+            $table->string('reference_code', 50)->nullable();  // -> account_number milik ledger (khusus subledger) 
             $table->string('name');
             $table->string('description');
 
