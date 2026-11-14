@@ -65,37 +65,37 @@ return new class extends Migration
         Schema::dropIfExists('product_mapped');
     }
 };
-    //     $operationalType = [
-    //     '01-DIRECT'       => '01-Direct',
-    //     '02-RETAIL'       => '02-Retail',
-    //     '03-INDIRECT'     => '03-Indirect',
-    //     '04-ANTAR-CABANG' => '04-Antar Cabang',
-    //     '05-INTERN'       => '05-Intern',
-    // ];
+        //     $operationalType = [
+        //     '01-DIRECT'       => '01-Direct',
+        //     '02-RETAIL'       => '02-Retail',
+        //     '03-INDIRECT'     => '03-Indirect',
+        //     '04-ANTAR-CABANG' => '04-Antar Cabang',
+        //     '05-INTERN'       => '05-Intern',
+        // ];
 
-    // // Update tedy -- note stop sewa tadinya gak ada
-    // $transactionType = [
-    //     'JAMINAN'       => 'Jaminan',
-    //     'JUAL'          => 'Jual',
-    //     'PASANG TARIK'  => 'Pasang Tarik',
-    //     'SEWA'          => 'Sewa',
-    //     'RETUR'         => 'Retur',
-    //     'TARIK JAMINAN' => 'Tarik Jaminan',
-    //     'STOP SEWA'     => 'Stop Sewa',
-    // ];
+        // // Update tedy -- note stop sewa tadinya gak ada
+        // $transactionType = [
+        //     'JAMINAN'       => 'Jaminan',
+        //     'JUAL'          => 'Jual',
+        //     'PASANG TARIK'  => 'Pasang Tarik',
+        //     'SEWA'          => 'Sewa',
+        //     'RETUR'         => 'Retur',
+        //     'TARIK JAMINAN' => 'Tarik Jaminan',
+        //     'STOP SEWA'     => 'Stop Sewa',
+        // ];
 
-    // $kind = [
-    //     'debit'  => 'Debit',
-    //     'credit' => 'Kredit',
-    // ];
+        // $kind = [
+        //     'debit'  => 'Debit',
+        //     'credit' => 'Kredit',
+        // ];
 
-    // $doType = [
-    //     'LA5' => 'LA5',
-    //     'LA8' => 'LA8',
-    //     'LA6' => 'LA6',
-    //     'LA1' => 'LA1',
-    //     'LA3' => 'LA3',
-    //     'LA4' => 'LA4',
-    //     'LA7' => 'LA7',
-    //     'LA2' => 'LA2',
-    // ];
+        // $doType = [
+        //     'LA5' => 'LA5',
+        //     'LA8' => 'LA8',
+        //     'LA6' => 'LA6',
+        //     'LA1' => 'LA1',
+        //     'LA3' => 'LA3',
+        //     'LA4' => 'LA4',
+        //     'LA7' => 'LA7',
+        //     'LA2' => 'LA2',
+        // ];
