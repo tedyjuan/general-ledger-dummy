@@ -44,6 +44,8 @@ class DatabaseSeeder extends Seeder
             JournalSourceSeeder::class,
             CoaSeeder::class,
             CostCenterSeeder::class,
+            ProductSeeder::class,
+            ProductMappedSeeder::class,
         ]);
     }
 }

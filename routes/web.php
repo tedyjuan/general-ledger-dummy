@@ -16,6 +16,7 @@ use App\Livewire\JournalSource;
 use App\Livewire\Coa;
 use App\Livewire\CostCenter;
 use App\Livewire\Product;
+use App\Livewire\AccountBalance;
 
 Route::livewire('/', Login::class)->name('login')->middleware('guest');
 Route::middleware('auth')->group(function () {
@@ -33,4 +34,5 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/coa', Coa::class)->middleware('permission:coa,read');
     Route::livewire('/cost-center', CostCenter::class)->middleware('permission:cost-center,read')->name('cost-center.index');
     Route::livewire('/product', Product::class)->middleware('permission:product,read');
+    Route::livewire('/account-balance', AccountBalance::class)->middleware('permission:account-balance,read');
 });

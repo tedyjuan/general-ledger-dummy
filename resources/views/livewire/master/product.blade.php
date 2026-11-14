@@ -5,13 +5,14 @@
     deleteCount: 0,
 }" @delete-close.window="deleteOpen = false" @keydown.escape.window="deleteOpen = false">
     @php
-        $user = auth()->user();
+        $user = \Illuminate\Support\Facades\Auth::user();
         $bisaTambah = (bool) $user?->izin('product', 'create');
         $bisaEdit = (bool) $user?->izin('product', 'update');
         $bisaHapus = (bool) $user?->izin('product', 'delete');
         $adaAksi = $bisaEdit || $bisaHapus;
         $adaFilter = $search !== '';
         $colspan = $adaAksi ? 6 : 5;
+        $tabMapped = $filter === 'mapped';
 
         // kolom tabel: [label, field sortable|null, class tambahan]
         $kolom = [
@@ -20,6 +21,12 @@
             ['Nama Produk', 'product_name', ''],
             ['Akun COA', 'coa_code', ''],
             ['Mapping', null, 'text-center'],
+        ];
+
+        // tab: [key, label, icon]
+        $tabs = [
+            ['mapped', 'Sudah Mapping', 'icon-[tabler--link]'],
+            ['unmapped', 'Belum Mapping', 'icon-[tabler--link-off]'],
         ];
     @endphp
 
@@ -56,8 +63,9 @@
         </div>
     </div>
 
-    @if (session('toast'))
-        <div x-data x-init="$dispatch('toast', { type: '{{ session('toast.type') }}', message: @js(session('toast.message')) })"></div>
+    @if (\Illuminate\Support\Facades\Session::has('toast'))
+        <div x-data x-init="$dispatch('toast', { type: @js(\Illuminate\Support\Facades\Session::get('toast.type')), message: @js(\Illuminate\Support\Facades\Session::get('toast.message')) })">
+        </div>
     @endif
 
     {{-- ============ KARTU TABEL ============ --}}
@@ -76,28 +84,50 @@
                     <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                         <span
                             class="font-semibold text-slate-700 dark:text-slate-200">{{ number_format($products->total()) }}</span>
-                        produk {{ $adaFilter ? 'ditemukan' : 'terdaftar' }}
+                        produk {{ $tabMapped ? 'sudah' : 'belum' }} mapping
+                        {{ $adaFilter ? 'ditemukan' : '' }}
                     </p>
                 </div>
             </div>
 
-            <div class="join">
-                <button type="button" wire:click="expandAll" wire:loading.attr="disabled" wire:target="expandAll"
-                    class="btn btn-sm btn-outline btn-success join-item gap-1.5">
-                    <span class="icon-[tabler--arrows-diagonal] size-4"></span>
-                    Buka Semua
+            @if ($tabMapped)
+                <div class="join">
+                    <button type="button" wire:click="expandAll" wire:loading.attr="disabled" wire:target="expandAll"
+                        class="btn btn-sm btn-outline btn-success join-item gap-1.5">
+                        <span class="icon-[tabler--arrows-diagonal] size-4"></span>
+                        Buka Semua
+                    </button>
+                    <button type="button" wire:click="collapseAll"
+                        class="btn btn-sm btn-outline btn-success join-item gap-1.5">
+                        <span class="icon-[tabler--arrows-diagonal-minimize-2] size-4"></span>
+                        Tutup Semua
+                    </button>
+                </div>
+            @endif
+        </div>
+
+        {{-- TAB: Sudah Mapping / Belum Mapping --}}
+        <div class="flex gap-1 overflow-x-auto border-t border-slate-100 px-4 dark:border-slate-800" role="tablist">
+            @foreach ($tabs as [$key, $label, $icon])
+                @php $aktif = $filter === $key; @endphp
+                <button type="button" role="tab" aria-selected="{{ $aktif ? 'true' : 'false' }}"
+                    wire:click="setFilter('{{ $key }}')" wire:loading.attr="disabled" wire:target="setFilter"
+                    class="-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors
+                        {{ $aktif
+                            ? 'border-emerald-600 text-emerald-700 dark:border-emerald-400 dark:text-emerald-400'
+                            : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200' }}">
+                    <span class="{{ $icon }} size-4"></span>
+                    {{ $label }}
+                    <span class="badge badge-sm {{ $aktif ? 'badge-soft badge-success' : 'badge-soft badge-neutral' }}">
+                        {{ number_format($tabCounts[$key]) }}
+                    </span>
                 </button>
-                <button type="button" wire:click="collapseAll"
-                    class="btn btn-sm btn-outline btn-success join-item gap-1.5">
-                    <span class="icon-[tabler--arrows-diagonal-minimize-2] size-4"></span>
-                    Tutup Semua
-                </button>
-            </div>
+            @endforeach
         </div>
 
         {{-- Toolbar pencarian --}}
         <div
-            class="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 lg:flex-row lg:items-center">
+            class="flex flex-col gap-2 border-y border-slate-100 bg-slate-50/70 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30 lg:flex-row lg:items-center">
             <div class="relative w-full lg:max-w-sm">
                 <span
                     class="icon-[tabler--search] pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"></span>
@@ -122,15 +152,19 @@
         </div>
 
         {{-- Petunjuk --}}
-        <div
-            class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
             <span class="icon-[tabler--info-circle] size-4 shrink-0 text-slate-400"></span>
-            <span>Klik baris yang memiliki panah untuk melihat mapping produknya.</span>
+            @if ($tabMapped)
+                <span>Klik baris untuk melihat mapping produknya, diurutkan berdasarkan DO Type.</span>
+            @else
+                <span>Produk di bawah ini belum punya mapping. Klik tombol <b>Buat mapping</b> pada baris untuk
+                    mengisinya.</span>
+            @endif
         </div>
 
         {{-- Tabel --}}
         <div class="overflow-x-auto border-t border-slate-100 dark:border-slate-800" wire:loading.class="opacity-60"
-            wire:target="search, perPage, sortBy, gotoPage, nextPage, previousPage, toggle, expandAll, collapseAll">
+            wire:target="search, perPage, sortBy, setFilter, gotoPage, nextPage, previousPage, toggle, expandAll, collapseAll">
             <table class="table table-sm">
                 <thead
                     class="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-300">
@@ -166,8 +200,8 @@
                     @forelse ($products as $i => $p)
                         @php
                             $jml = (int) ($counts[$p->product_code] ?? 0);
-                            $open = in_array($p->id, $expanded, true);
-                            $klik = $jml > 0;
+                            $open = $tabMapped && in_array($p->id, $expanded, true);
+                            $klik = $tabMapped && $jml > 0;
                             $coaNama = $coaNames->get((int) $p->coa_code);
                         @endphp
 
@@ -222,10 +256,11 @@
                                         @if ($bisaEdit)
                                             <button type="button" wire:click="edit({{ $p->id }})"
                                                 wire:loading.attr="disabled" wire:target="edit({{ $p->id }})"
-                                                class="btn btn-sm btn-square btn-soft btn-primary" title="Edit produk"
-                                                aria-label="Edit produk">
+                                                class="btn btn-sm btn-square btn-soft {{ $tabMapped ? 'btn-primary' : 'btn-success' }}"
+                                                title="{{ $tabMapped ? 'Edit produk' : 'Buat mapping' }}"
+                                                aria-label="{{ $tabMapped ? 'Edit produk' : 'Buat mapping' }}">
                                                 <span wire:loading.remove wire:target="edit({{ $p->id }})"
-                                                    class="icon-[tabler--pencil] size-4"></span>
+                                                    class="{{ $tabMapped ? 'icon-[tabler--pencil]' : 'icon-[tabler--link-plus]' }} size-4"></span>
                                                 <span wire:loading wire:target="edit({{ $p->id }})"
                                                     class="icon-[tabler--loader-2] size-4 animate-spin"></span>
                                             </button>
@@ -243,9 +278,12 @@
                             @endif
                         </tr>
 
-                        {{-- Detail mapping --}}
+                        {{-- Detail mapping (urut natural DO Type: LA1, LA2, ... LA10) --}}
                         @if ($open)
-                            @php $detail = $detailMapping->get($p->product_code, collect()); @endphp
+                            @php
+                                $detail = $detailMapping->get($p->product_code, []);
+                                $lastDo = null;
+                            @endphp
                             <tr wire:key="prd-{{ $p->id }}-detail"
                                 class="bg-slate-50/60 dark:bg-slate-800/30">
                                 <td colspan="{{ $colspan }}" class="p-0">
@@ -254,9 +292,9 @@
                                             <thead
                                                 class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
                                                 <tr>
+                                                    <th>DO Type</th>
                                                     <th>Tipe Transaksi</th>
                                                     <th>Tipe Operasional</th>
-                                                    <th>DO Type</th>
                                                     <th>Cost Center</th>
                                                     <th>Akun COA</th>
                                                     <th class="text-center">D / K</th>
@@ -264,15 +302,28 @@
                                             </thead>
                                             <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
                                                 @foreach ($detail as $m)
-                                                    <tr wire:key="pm-{{ $m->id }}">
-                                                        <td class="text-slate-700 dark:text-slate-200">
-                                                            {{ \App\Models\ProductMapped::TRANSACTION_TYPES[$m->transaction_type] ?? $m->transaction_type }}
+                                                    @php $barisBaruDo = $lastDo !== $m->do_type; @endphp
+                                                    <tr wire:key="pm-{{ $m->id }}"
+                                                        class="{{ $barisBaruDo && $lastDo !== null ? 'border-t-2 border-slate-200 dark:border-slate-700' : '' }}">
+                                                        <td class="whitespace-nowrap">
+                                                            @if ($barisBaruDo)
+                                                                <span
+                                                                    class="badge badge-soft badge-primary badge-xs font-semibold">
+                                                                    {{ $m->do_type }}
+                                                                </span>
+                                                                @if (isset($doLabels[$m->do_type]))
+                                                                    <span
+                                                                        class="ms-1 text-slate-500 dark:text-slate-400">
+                                                                        {{ $doLabels[$m->do_type] }}
+                                                                    </span>
+                                                                @endif
+                                                            @endif
                                                         </td>
                                                         <td class="text-slate-700 dark:text-slate-200">
-                                                            {{ \App\Models\ProductMapped::OPERATIONAL_TYPES[$m->operational_type] ?? $m->operational_type }}
+                                                            {{ $trxLabels[$m->transaction_type] ?? $m->transaction_type }}
                                                         </td>
                                                         <td class="text-slate-700 dark:text-slate-200">
-                                                            {{ \App\Models\ProductMapped::DO_TYPES[$m->do_type] ?? $m->do_type }}
+                                                            {{ $opsLabels[$m->operational_type] ?? $m->operational_type }}
                                                         </td>
                                                         <td>
                                                             <span
@@ -288,9 +339,10 @@
                                                         </td>
                                                         <td class="text-center">
                                                             <span
-                                                                class="badge badge-soft badge-xs {{ $m->kind === 'debit' ? 'badge-success' : 'badge-error' }}">{{ $m->kind === 'debit' ? 'Debit' : 'Kredit' }}</span>
+                                                                class="badge badge-soft badge-xs {{ $m->kind === 'debit' ? 'badge-success' : 'badge-error' }}">{{ $kindLabels[$m->kind] ?? ($m->kind === 'debit' ? 'Debit' : 'Kredit') }}</span>
                                                         </td>
                                                     </tr>
+                                                    @php $lastDo = $m->do_type; @endphp
                                                 @endforeach
                                             </tbody>
                                         </table>
@@ -306,18 +358,26 @@
                                     <div
                                         class="flex size-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
                                         <span
-                                            class="icon-[tabler--package-off] size-7 text-slate-400 dark:text-slate-500"></span>
+                                            class="{{ $tabMapped ? 'icon-[tabler--package-off]' : 'icon-[tabler--checks]' }} size-7 text-slate-400 dark:text-slate-500"></span>
                                     </div>
                                     <p class="text-base font-semibold text-slate-700 dark:text-slate-300">
-                                        Tidak ada produk ditemukan
+                                        @if ($adaFilter)
+                                            Tidak ada produk ditemukan
+                                        @elseif ($tabMapped)
+                                            Belum ada produk yang di-mapping
+                                        @else
+                                            Semua produk sudah punya mapping
+                                        @endif
                                     </p>
                                     <p class="text-xs text-slate-400">
                                         @if ($adaFilter)
                                             Coba ganti kata kunci atau reset pencarian.
+                                        @elseif ($tabMapped)
+                                            Buka tab Belum Mapping untuk mengisi mapping produk.
                                         @elseif ($bisaTambah)
-                                            Belum ada produk. Klik Tambah Produk untuk membuat.
+                                            Tidak ada produk yang menunggu mapping.
                                         @else
-                                            Belum ada produk terdaftar.
+                                            Tidak ada produk yang menunggu mapping.
                                         @endif
                                     </p>
                                     @if ($adaFilter)
@@ -345,7 +405,64 @@
                     class="font-medium text-slate-700 dark:text-slate-200">{{ number_format($products->total()) }}</span>
                 produk
             </p>
-            <div>{{ $products->links() }}</div>
+
+            {{-- Pagination ringkas: 1, 2 [ input halaman ] terakhir-1, terakhir --}}
+            @php
+                $cur = $products->currentPage();
+                $last = $products->lastPage();
+                $semua = $last <= 6; // halaman sedikit: tampilkan semua nomor
+            @endphp
+            @if ($last > 1)
+                <nav wire:key="pager-{{ $filter }}-{{ $cur }}-{{ $last }}"
+                    aria-label="Navigasi halaman" class="flex flex-wrap items-center gap-1" x-data="{
+                        page: {{ $cur }},
+                        go() {
+                            let n = parseInt(this.page);
+                            if (isNaN(n)) n = {{ $cur }};
+                            n = Math.min(Math.max(n, 1), {{ $last }});
+                            this.page = n;
+                            if (n !== {{ $cur }}) $wire.gotoPage(n);
+                        },
+                    }">
+                    <button type="button" wire:click="previousPage" @disabled($cur <= 1)
+                        class="btn btn-sm btn-square btn-outline btn-success" aria-label="Halaman sebelumnya">
+                        <span class="icon-[tabler--chevron-left] size-4"></span>
+                    </button>
+
+                    @if ($semua)
+                        @foreach (range(1, $last) as $n)
+                            <button type="button" wire:click="gotoPage({{ $n }})"
+                                @if ($n === $cur) aria-current="page" @endif
+                                class="btn btn-sm btn-square {{ $n === $cur ? 'btn-success' : 'btn-outline btn-success' }}">{{ $n }}</button>
+                        @endforeach
+                    @else
+                        @foreach ([1, 2] as $n)
+                            <button type="button" wire:click="gotoPage({{ $n }})"
+                                @if ($n === $cur) aria-current="page" @endif
+                                class="btn btn-sm btn-square {{ $n === $cur ? 'btn-success' : 'btn-outline btn-success' }}">{{ $n }}</button>
+                        @endforeach
+
+                        <div class="mx-1 flex items-center gap-1.5">
+                            <input type="text" inputmode="numeric" x-model="page" @keydown.enter.prevent="go()"
+                                @blur="go()" @focus="$el.select()" aria-label="Lompat ke halaman"
+                                title="Ketik nomor halaman lalu tekan Enter"
+                                class="input input-sm w-16 bg-white text-center font-semibold dark:border-slate-700 dark:bg-slate-900 dark:text-white {{ $cur > 2 && $cur < $last - 1 ? 'border-emerald-500' : '' }}">
+                            <span class="text-xs text-slate-400">/ {{ number_format($last) }}</span>
+                        </div>
+
+                        @foreach ([$last - 1, $last] as $n)
+                            <button type="button" wire:click="gotoPage({{ $n }})"
+                                @if ($n === $cur) aria-current="page" @endif
+                                class="btn btn-sm btn-square {{ $n === $cur ? 'btn-success' : 'btn-outline btn-success' }}">{{ $n }}</button>
+                        @endforeach
+                    @endif
+
+                    <button type="button" wire:click="nextPage" @disabled($cur >= $last)
+                        class="btn btn-sm btn-square btn-outline btn-success" aria-label="Halaman berikutnya">
+                        <span class="icon-[tabler--chevron-right] size-4"></span>
+                    </button>
+                </nav>
+            @endif
         </div>
     </div>
 

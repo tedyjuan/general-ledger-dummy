@@ -10,11 +10,15 @@ use App\Models\Product as ProductModel;
 use App\Models\ProductMapped as MappedModel;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -26,6 +30,8 @@ class Product extends Component
     private const RESOURCE = 'product';
 
     private const SORTABLE = ['product_code', 'product_name', 'coa_code'];
+
+    private const FILTERS = ['mapped', 'unmapped'];
 
     private const RE_CODE = '/^[A-Za-z0-9][A-Za-z0-9._\-\/]*$/';
 
@@ -40,6 +46,10 @@ class Product extends Component
     public int    $perPage       = 25;
     public string $sortField     = 'product_code';
     public string $sortDirection = 'asc';
+
+    // tab aktif: mapped = sudah mapping, unmapped = belum mapping
+    #[Url(as: 'tab')]
+    public string $filter = 'mapped';
 
     // id produk yang barisnya sedang terbuka (menampilkan mapping)
     #[Locked]
@@ -113,6 +123,17 @@ class Product extends Component
         }
     }
 
+    public function setFilter(string $filter): void
+    {
+        if (! in_array($filter, self::FILTERS, true)) {
+            return;
+        }
+
+        $this->filter   = $filter;
+        $this->expanded = [];
+        $this->resetPage();
+    }
+
     public function refreshData(): void
     {
         $this->reset(['search', 'expanded']);
@@ -165,7 +186,9 @@ class Product extends Component
         $this->izinkan(self::RESOURCE, 'create');
         $this->ensureSameCompany();
 
-        $this->resetForm();
+        $this->reset(['selectedId', 'formCompany', 'product_code', 'product_name', 'coa_code', 'mappings']);
+        $this->resetErrorBag();
+
         $this->formCompany = (string) $this->tabCompany;
         $this->mode        = 'form';
     }
@@ -175,7 +198,8 @@ class Product extends Component
         $this->izinkan(self::RESOURCE, 'update');
         $this->ensureSameCompany();
 
-        $this->resetForm();
+        $this->reset(['selectedId', 'formCompany', 'product_code', 'product_name', 'coa_code', 'mappings']);
+        $this->resetErrorBag();
 
         $company = (string) $this->tabCompany;
 
@@ -190,11 +214,26 @@ class Product extends Component
         $this->product_name = (string) $product->product_name;
         $this->coa_code     = (string) $product->coa_code;
 
+        // urut natural: do_type (LA1, LA2, ... LA10), lalu transaksi, operasional, id
         $this->mappings = MappedModel::query()
             ->where('company_code', $company)
             ->where('product_code', $product->product_code)
-            ->orderBy('id')
             ->get()
+            ->sort(function ($a, $b) {
+                $hasil = strnatcasecmp((string) $a->do_type, (string) $b->do_type);
+                if ($hasil === 0) {
+                    $hasil = strnatcasecmp((string) $a->transaction_type, (string) $b->transaction_type);
+                }
+                if ($hasil === 0) {
+                    $hasil = strnatcasecmp((string) $a->operational_type, (string) $b->operational_type);
+                }
+                if ($hasil === 0) {
+                    $hasil = $a->id <=> $b->id;
+                }
+
+                return $hasil;
+            })
+            ->values()
             ->map(fn($m) => [
                 'key'              => Str::random(8),
                 'transaction_type' => (string) $m->transaction_type,
@@ -211,7 +250,8 @@ class Product extends Component
 
     public function backToList(): void
     {
-        $this->resetForm();
+        $this->reset(['selectedId', 'formCompany', 'product_code', 'product_name', 'coa_code', 'mappings']);
+        $this->resetErrorBag();
         $this->mode = 'list';
     }
 
@@ -228,7 +268,15 @@ class Product extends Component
         }
 
         $rows   = $this->mappings;
-        $rows[] = $this->blankMapping();
+        $rows[] = [
+            'key'              => Str::random(8),
+            'transaction_type' => '',
+            'operational_type' => '',
+            'cost_center_code' => '',
+            'coa_code'         => '',
+            'kind'             => 'debit',
+            'do_type'          => '',
+        ];
 
         $this->mappings = $rows;
     }
@@ -242,9 +290,9 @@ class Product extends Component
             return;
         }
 
-        $rows         = $this->mappings;
-        $copy         = $rows[$index];
-        $copy['key']  = Str::random(8);
+        $rows        = $this->mappings;
+        $copy        = $rows[$index];
+        $copy['key'] = Str::random(8);
 
         array_splice($rows, $index + 1, 0, [$copy]);
 
@@ -266,20 +314,28 @@ class Product extends Component
         $this->mappings = array_values($rows);
         $this->resetErrorBag();
     }
-
-    private function blankMapping(): array
+    public function sortMappings(): void
     {
-        return [
-            'key'              => Str::random(8),
-            'transaction_type' => '',
-            'operational_type' => '',
-            'cost_center_code' => '',
-            'coa_code'         => '',
-            'kind'             => 'debit',
-            'do_type'          => '',
-        ];
-    }
+        $this->izinkan(self::RESOURCE, $this->selectedId ? 'update' : 'create');
+        $this->ensureSameCompany();
 
+        $rows = $this->mappings;
+
+        usort($rows, function ($a, $b) {
+            $hasil = strnatcasecmp((string) $a['do_type'], (string) $b['do_type']);
+            if ($hasil === 0) {
+                $hasil = strnatcasecmp((string) $a['transaction_type'], (string) $b['transaction_type']);
+            }
+            if ($hasil === 0) {
+                $hasil = strnatcasecmp((string) $a['operational_type'], (string) $b['operational_type']);
+            }
+
+            return $hasil;
+        });
+
+        $this->mappings = array_values($rows);
+        $this->resetErrorBag();
+    }
     /* SIMPAN */
     public function save(): void
     {
@@ -325,8 +381,54 @@ class Product extends Component
         }
         $this->mappings = $rows;
 
+        // Aturan validasi
+        $rules = [
+            'product_name' => ['required', 'string', 'max:255'],
+
+            // hanya akun ledger / subledger (bukan header)
+            'coa_code' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::exists('chart_of_accounts', 'account_number')
+                    ->where('company_code', $company)
+                    ->whereNotNull('header_code'),
+            ],
+
+            'mappings'                    => ['array', 'max:' . self::MAX_MAPPING],
+            'mappings.*.transaction_type' => ['required', Rule::in(array_keys(MappedModel::TRANSACTION_TYPES))],
+            'mappings.*.operational_type' => ['required', Rule::in(array_keys(MappedModel::OPERATIONAL_TYPES))],
+            'mappings.*.do_type'          => ['required', Rule::in(array_keys(MappedModel::DO_TYPES))],
+            'mappings.*.cost_center_code' => [
+                'required',
+                'string',
+                'max:30',
+                Rule::exists('cost_centers', 'cost_center')->where('company_code', $company),
+            ],
+            'mappings.*.coa_code' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::exists('chart_of_accounts', 'account_number')
+                    ->where('company_code', $company)
+                    ->whereNotNull('header_code'),
+            ],
+            'mappings.*.kind' => ['required', Rule::in(array_keys(MappedModel::KINDS))],
+        ];
+
+        // Edit: kode produk tidak diubah, jadi tidak divalidasi ulang
+        if ($existing === null) {
+            $rules['product_code'] = [
+                'required',
+                'string',
+                'max:50',
+                'regex:' . self::RE_CODE,
+                Rule::unique('products', 'product_code')->where('company_code', $company),
+            ];
+        }
+
         try {
-            $this->validate($this->rules($company, $existing !== null));
+            $this->validate($rules);
 
             // Cegah baris mapping kembar (sama dengan unique key tabel product_mapped)
             $seen = [];
@@ -394,16 +496,21 @@ class Product extends Component
                     ->delete();
 
                 if ($this->mappings !== []) {
-                    MappedModel::query()->insert(array_map(fn($m) => [
-                        'company_code'     => $company,
-                        'product_code'     => $product->product_code,
-                        'transaction_type' => $m['transaction_type'],
-                        'operational_type' => $m['operational_type'],
-                        'cost_center_code' => $m['cost_center_code'],
-                        'coa_code'         => $m['coa_code'],
-                        'kind'             => $m['kind'],
-                        'do_type'          => $m['do_type'],
-                    ], $this->mappings));
+                    $insert = [];
+                    foreach ($this->mappings as $m) {
+                        $insert[] = [
+                            'company_code'     => $company,
+                            'product_code'     => $product->product_code,
+                            'transaction_type' => $m['transaction_type'],
+                            'operational_type' => $m['operational_type'],
+                            'cost_center_code' => $m['cost_center_code'],
+                            'coa_code'         => $m['coa_code'],
+                            'kind'             => $m['kind'],
+                            'do_type'          => $m['do_type'],
+                        ];
+                    }
+
+                    MappedModel::query()->insert($insert);
                 }
 
                 return $product;
@@ -417,16 +524,19 @@ class Product extends Component
             $this->toast('Kode produk bentrok, periksa kembali.', 'error');
             throw $e;
         } catch (UniqueConstraintViolationException $e) {
-            report($e);
+            Log::error($e->getMessage(), ['exception' => $e]);
             $this->toast('Data kembar terdeteksi, silakan periksa mapping lalu coba lagi.', 'error');
 
             return;
         } catch (QueryException $e) {
-            report($e);
+            Log::error($e->getMessage(), ['exception' => $e]);
             $this->toast('Gagal menyimpan data. Periksa akun COA dan cost center lalu coba lagi.', 'error');
 
             return;
         }
+
+        // Arahkan ke tab yang sesuai dengan hasil simpan
+        $this->filter = $this->mappings !== [] ? 'mapped' : 'unmapped';
 
         // Produk baru dengan mapping: langsung dibuka supaya terlihat di list
         if (! $existing && $this->mappings !== [] && ! in_array($product->id, $this->expanded, true)) {
@@ -464,87 +574,11 @@ class Product extends Component
                 ? "Produk '{$name}' beserta {$jumlah} mapping berhasil dihapus."
                 : "Produk '{$name}' berhasil dihapus.");
         } catch (QueryException $e) {
-            report($e);
+            Log::error($e->getMessage(), ['exception' => $e]);
             $this->toast('Produk tidak bisa dihapus karena masih dipakai data lain.', 'error');
         }
 
         $this->dispatch('delete-close');
-    }
-
-    /* ATURAN VALIDASI */
-    private function rules(string $company, bool $isEdit): array
-    {
-        $inCompany = fn(string $table, string $column) => Rule::exists($table, $column)
-            ->where('company_code', $company);
-
-        $rules = [
-            'product_name' => ['required', 'string', 'max:255'],
-
-            // hanya akun ledger / subledger (bukan header)
-            'coa_code' => ['required', 'string', 'max:50', $inCompany('chart_of_accounts', 'account_number')->whereNotNull('header_code')],
-
-            'mappings'   => ['array', 'max:' . self::MAX_MAPPING],
-            'mappings.*.transaction_type' => ['required', Rule::in(array_keys(MappedModel::TRANSACTION_TYPES))],
-            'mappings.*.operational_type' => ['required', Rule::in(array_keys(MappedModel::OPERATIONAL_TYPES))],
-            'mappings.*.do_type'          => ['required', Rule::in(array_keys(MappedModel::DO_TYPES))],
-            'mappings.*.cost_center_code' => ['required', 'string', 'max:30', $inCompany('cost_centers', 'cost_center')],
-            'mappings.*.coa_code'         => ['required', 'string', 'max:50', $inCompany('chart_of_accounts', 'account_number')->whereNotNull('header_code')],
-            'mappings.*.kind'             => ['required', Rule::in(array_keys(MappedModel::KINDS))],
-        ];
-
-        // Edit: kode produk tidak diubah, jadi tidak divalidasi ulang
-        if (! $isEdit) {
-            $rules['product_code'] = [
-                'required',
-                'string',
-                'max:50',
-                'regex:' . self::RE_CODE,
-                Rule::unique('products', 'product_code')->where('company_code', $company),
-            ];
-        }
-
-        return $rules;
-    }
-
-    private function resetForm(): void
-    {
-        $this->reset([
-            'selectedId',
-            'formCompany',
-            'product_code',
-            'product_name',
-            'coa_code',
-            'mappings',
-        ]);
-        $this->resetErrorBag();
-    }
-
-    /* OPSI DROPDOWN FORM (semua per company aktif) */
-    private function formOptions(string $company): array
-    {
-        $coas = CoaModel::query()
-            ->where('company_code', $company)
-            ->whereNotNull('header_code')
-            ->orderBy('account_number')
-            ->get(['account_number', 'name'])
-            ->map(fn($a) => ['v' => (string) $a->account_number, 'n' => (string) $a->name])
-            ->all();
-
-        $costCenters = DB::table('cost_centers')
-            ->where('company_code', $company)
-            ->orderBy('cost_center')
-            ->get(['cost_center', 'name'])
-            ->map(fn($c) => ['v' => (string) $c->cost_center, 'n' => (string) $c->name])
-            ->all();
-
-        return [
-            'coas'        => $coas,
-            'costCenters' => $costCenters,
-            'kind'        => MappedModel::KINDS,
-            'trx'         => MappedModel::TRANSACTION_TYPES,
-            'ops'         => MappedModel::OPERATIONAL_TYPES,
-            'do'          => MappedModel::DO_TYPES,
-        ];
     }
 
     /* RENDER */
@@ -562,52 +596,132 @@ class Product extends Component
             $this->resetPage();
         }
 
-        // Company di-switch saat form terbuka: tutup form, data kembali ke company baru
+        // Company di-switch saat form terbuka: tutup form
         if ($this->mode === 'form' && ($this->formCompany === '' || $this->formCompany !== $company)) {
-            $this->resetForm();
+            $this->reset(['selectedId', 'formCompany', 'product_code', 'product_name', 'coa_code', 'mappings']);
+            $this->resetErrorBag();
             $this->mode = 'list';
             $this->resetPage();
             $this->toast('Perusahaan diganti, form ditutup.', 'info');
         }
 
+        /* ---------- MODE FORM ---------- */
         if ($this->mode === 'form') {
-            return view('livewire.master.product-form', [
+            $coas = CoaModel::query()
+                ->where('company_code', $company)
+                ->whereNotNull('header_code')
+                ->orderBy('account_number')
+                ->get(['account_number', 'name'])
+                ->map(fn($a) => ['v' => (string) $a->account_number, 'n' => (string) $a->name])
+                ->all();
+
+            $costCenters = DB::table('cost_centers')
+                ->where('company_code', $company)
+                ->orderBy('cost_center')
+                ->get(['cost_center', 'name'])
+                ->map(fn($c) => ['v' => (string) $c->cost_center, 'n' => (string) $c->name])
+                ->all();
+
+            return View::make('livewire.master.product-form', [
                 'activeCompany' => $company,
-                'opsi'          => $this->formOptions($company),
+                'opsi'          => [
+                    'coas'        => $coas,
+                    'costCenters' => $costCenters,
+                    'kind'        => MappedModel::KINDS,
+                    'trx'         => MappedModel::TRANSACTION_TYPES,
+                    'ops'         => MappedModel::OPERATIONAL_TYPES,
+                    'do'          => MappedModel::DO_TYPES,
+                ],
             ]);
         }
 
-        $products = ProductModel::query()
+        /* ---------- MODE LIST ---------- */
+
+        // Daftar produk sesuai tab: punya mapping / belum punya mapping
+        $query = ProductModel::query()
             ->where('company_code', $company)
-            ->search($this->search)
+            ->search($this->search);
+
+        if ($this->filter === 'mapped') {
+            $query->whereExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('product_mapped')
+                    ->whereColumn('product_mapped.company_code', 'products.company_code')
+                    ->whereColumn('product_mapped.product_code', 'products.product_code');
+            });
+        } else {
+            $query->whereNotExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('product_mapped')
+                    ->whereColumn('product_mapped.company_code', 'products.company_code')
+                    ->whereColumn('product_mapped.product_code', 'products.product_code');
+            });
+        }
+
+        $products = $query
             ->orderBy($this->sortField, $this->sortDirection)
             ->orderBy('product_code')
             ->paginate($this->perPage);
+
+        // Angka badge tab (tidak ikut search)
+        $totalProducts = ProductModel::query()
+            ->where('company_code', $company)
+            ->count();
+
+        $mappedProducts = ProductModel::query()
+            ->where('company_code', $company)
+            ->whereExists(function ($sub) {
+                $sub->selectRaw('1')
+                    ->from('product_mapped')
+                    ->whereColumn('product_mapped.company_code', 'products.company_code')
+                    ->whereColumn('product_mapped.product_code', 'products.product_code');
+            })
+            ->count();
+
+        $tabCounts = [
+            'mapped'   => $mappedProducts,
+            'unmapped' => $totalProducts - $mappedProducts,
+        ];
 
         $items = $products->getCollection();
         $codes = $items->pluck('product_code')->all();
 
         // jumlah mapping per produk di halaman ini
-        $counts = $codes
-            ? MappedModel::query()
-            ->where('company_code', $company)
-            ->whereIn('product_code', $codes)
-            ->selectRaw('product_code, COUNT(*) as total')
-            ->groupBy('product_code')
-            ->pluck('total', 'product_code')
-            : collect();
+        $counts = new Collection();
+        if ($codes !== []) {
+            $counts = MappedModel::query()
+                ->where('company_code', $company)
+                ->whereIn('product_code', $codes)
+                ->selectRaw('product_code, COUNT(*) as total')
+                ->groupBy('product_code')
+                ->pluck('total', 'product_code');
+        }
 
-        // detail mapping hanya untuk baris yang terbuka
+        // detail mapping hanya untuk baris yang terbuka (urut natural do_type)
         $openCodes = $items->whereIn('id', $this->expanded)->pluck('product_code')->all();
 
-        $mappings = $openCodes
-            ? MappedModel::query()
-            ->where('company_code', $company)
-            ->whereIn('product_code', $openCodes)
-            ->orderBy('id')
-            ->get()
-            ->groupBy('product_code')
-            : collect();
+        $mappings = new Collection();
+        if ($openCodes !== []) {
+            $mappings = MappedModel::query()
+                ->where('company_code', $company)
+                ->whereIn('product_code', $openCodes)
+                ->get()
+                ->sort(function ($a, $b) {
+                    $hasil = strnatcasecmp((string) $a->do_type, (string) $b->do_type);
+                    if ($hasil === 0) {
+                        $hasil = strnatcasecmp((string) $a->transaction_type, (string) $b->transaction_type);
+                    }
+                    if ($hasil === 0) {
+                        $hasil = strnatcasecmp((string) $a->operational_type, (string) $b->operational_type);
+                    }
+                    if ($hasil === 0) {
+                        $hasil = $a->id <=> $b->id;
+                    }
+
+                    return $hasil;
+                })
+                ->groupBy('product_code');
+        }
 
         // nama akun COA untuk produk & mapping yang tampil
         $coaCodes = $items->pluck('coa_code')
@@ -616,30 +730,37 @@ class Product extends Component
             ->values()
             ->all();
 
-        $coaNames = $coaCodes
-            ? CoaModel::query()
-            ->where('company_code', $company)
-            ->whereIn('account_number', $coaCodes)
-            ->pluck('name', 'account_number')
-            : collect();
+        $coaNames = new Collection();
+        if ($coaCodes !== []) {
+            $coaNames = CoaModel::query()
+                ->where('company_code', $company)
+                ->whereIn('account_number', $coaCodes)
+                ->pluck('name', 'account_number');
+        }
 
         // nama cost center untuk mapping yang tampil
         $ccCodes = $mappings->flatten()->pluck('cost_center_code')->unique()->values()->all();
 
-        $ccNames = $ccCodes
-            ? DB::table('cost_centers')
-            ->where('company_code', $company)
-            ->whereIn('cost_center', $ccCodes)
-            ->pluck('name', 'cost_center')
-            : collect();
+        $ccNames = new Collection();
+        if ($ccCodes !== []) {
+            $ccNames = DB::table('cost_centers')
+                ->where('company_code', $company)
+                ->whereIn('cost_center', $ccCodes)
+                ->pluck('name', 'cost_center');
+        }
 
-        return view('livewire.master.product', [
+        return View::make('livewire.master.product', [
             'products'      => $products,
             'counts'        => $counts,
             'detailMapping' => $mappings,
             'coaNames'      => $coaNames,
             'ccNames'       => $ccNames,
+            'tabCounts'     => $tabCounts,
             'activeCompany' => $company,
+            'trxLabels'     => MappedModel::TRANSACTION_TYPES,
+            'opsLabels'     => MappedModel::OPERATIONAL_TYPES,
+            'doLabels'      => MappedModel::DO_TYPES,
+            'kindLabels'    => MappedModel::KINDS,
         ]);
     }
 }

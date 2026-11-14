@@ -61,6 +61,13 @@ return [
                 ['label' => 'Laba Rugi',    'href' => '/laba-rugi',    'match' => ['laba-rugi*'],    'key' => 'laba-rugi'],
             ],
         ],
+        [
+            'label'    => 'Task Setup',
+            'icon'     => 'icon-[tabler--list-check]',
+            'children' => [
+                ['label' => 'Account Balance',   'href' => '/account-balance',   'match' => ['account-balance*'],   'key' => 'account-balance'],
+            ],
+        ],
 
         [
             'label'    => 'Pengaturan',
