@@ -46,6 +46,7 @@ class DatabaseSeeder extends Seeder
             CostCenterSeeder::class,
             ProductSeeder::class,
             ProductMappedSeeder::class,
+            PostingBalaanceSeeder::class,
         ]);
     }
 }
